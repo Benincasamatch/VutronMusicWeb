@@ -43,6 +43,7 @@
             @dragstart="onDragStart(index)"
             @dragend="onDragEnd()"
             @dblclick="playThisList(item.id)"
+            @click="onRowClick($event, item)"
             @click.right="openMenu($event, item, index)"
           />
         </div>
@@ -357,6 +358,23 @@ const doFinish = () => {
 const play = () => {
   const { pluginId, sourceContext } = rightClickedTrack.value
   addTrackToPlayNext([[pluginId, sourceContext]], true, true)
+}
+
+/**
+ * Web 版：单击曲目 = 加入待播队列，不抢占正在播放的会话（服务端队列是多方共享的）。
+ * 桌面版保持原行为（单击不做任何事，双击播放，右键菜单提供入队操作）。
+ */
+const enqueueOnRowClick = window.env?.isWeb === true
+const onRowClick = (event: MouseEvent, item: Track) => {
+  if (!enqueueOnRowClick) return
+  const target = event.target as HTMLElement | null
+  // 行内可交互元素各自的语义优先：专辑跳转、MV、悬停播放按钮、拖拽手柄、勾选、封面
+  if (target?.closest('button, a, input, label, .drag-handle, .album, .mv-icon, .no, .cover, .checkbox')) {
+    return
+  }
+  if (!item?.pluginId || !item?.sourceContext) return
+  addTrackToPlayNext([[item.pluginId, item.sourceContext]])
+  showToast(t('contextMenu.addedToQueue'))
 }
 
 const showInFolder = () => {

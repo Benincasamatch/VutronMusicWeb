@@ -611,6 +611,12 @@ export const usePlayerStore = defineStore(
 
     function _nextTrackCallback() {
       reportPlayback('end')
+      // Web 版：曲目推进由服务器掌握（服务器播完会推送下一首）。浏览器若在此自行 playNext，
+      // 会与服务器各自的推进叠加，造成跳曲与顺序错乱。
+      if (window.vwWeb?.onLocalTrackEnded) {
+        window.vwWeb.onLocalTrackEnded()
+        return
+      }
       _pendingEndReport = true
       isEnd.value = true
       lyricStore.isEnd = true
@@ -838,6 +844,11 @@ export const usePlayerStore = defineStore(
         })
       })
       eventBus.on('playNext', (autoPlay) => {
+        // Web 版：本地媒体反复失败时不要自行切歌（会与服务器队列不同步），改为请求服务器跳过
+        if (window.vwWeb?.requestServerNext) {
+          window.vwWeb.requestServerNext()
+          return
+        }
         showToast(`播放错误，正在切歌: ${currentTrack.value?.reason}`)
         // 无参 emit（自然播放结束）时 autoPlay 为 undefined，兜底 true 自动播放
         playNext(isPersonalFM.value, (autoPlay ?? true) as boolean)

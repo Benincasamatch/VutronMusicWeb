@@ -85,15 +85,15 @@
         <svg-icon icon-class="login" />
         {{ $t('login.login') }}
       </div>
-      <div v-if="isLooseLoggedIn" class="item" @click="logout">
+      <div v-if="isLooseLoggedIn || isWeb" class="item" @click="logout">
         <svg-icon icon-class="logout" />
         {{ $t('library.userProfileMenu.logout') }}
       </div>
-      <div class="item" @click="toGitHub">
+      <div v-if="!isWeb" class="item" @click="toGitHub">
         <svg-icon icon-class="github" />
         {{ $t('nav.github') }}
       </div>
-      <div class="item" @click="openLogFile">
+      <div v-if="!isWeb" class="item" @click="openLogFile">
         <svg-icon icon-class="log" />
         {{ $t('nav.log') }}
       </div>
@@ -143,6 +143,7 @@ const isLooseLoggedIn = computed(() => {
 })
 const isLinux = computed(() => window.env?.isLinux || false)
 const isWin = computed(() => window.env?.isWindows)
+const isWeb = window.env?.isWeb || false
 const navStyle = computed(() => {
   return {
     paddingLeft: isLinux.value || isWin.value ? '20px' : '6vw'
@@ -172,6 +173,13 @@ const toExplore = (Category: ExploreTab) => {
 const logout = async () => {
   const { showConfirm } = useNormalStateStore()
   if (!(await showConfirm('确定要退出登录吗？'))) return
+
+  if (isWeb) {
+    // Web 版退出的是浏览器会话（Cookie），退出后刷新回到登录闸门
+    await window.vwAuth?.logout()
+    window.location.reload()
+    return
+  }
 
   const plugin = services.value.find((item) => item.active)!
 

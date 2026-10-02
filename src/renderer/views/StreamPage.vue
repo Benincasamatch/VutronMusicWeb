@@ -654,7 +654,16 @@ const handleResize = () => {
   if (tabsRowRef.value) observeTab.observe(tabsRowRef.value)
 }
 
+/** 插件列表由 App 启动时异步加载，页面可能在 services 就绪前挂载；先等一段时间再探测登录态 */
+const waitForStreamServices = async (timeoutMs = 5000) => {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs && streamService.value.length === 0) {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+}
+
 const checkLoginStatus = async () => {
+  await waitForStreamServices()
   await Promise.all(
     streamService.value
       .filter((item) => item.status !== 'logout')

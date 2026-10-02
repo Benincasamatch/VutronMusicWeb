@@ -60,7 +60,7 @@
               </div>
             </div>
           </div>
-          <div class="item">
+          <div v-if="!isWeb" class="item">
             <div class="left">
               <div class="title">{{ $t('settings.osdLyric.font') }}</div>
             </div>
@@ -204,6 +204,9 @@ const { getFontList } = stateStore
 
 const playerThemeStore = usePlayerThemeStore()
 const { activeTheme, senses } = storeToRefs(playerThemeStore)
+
+// 系统字体列表为桌面专属通道（getFontList 未映射），Web 版隐藏字体选择
+const isWeb = window.env?.isWeb || false
 
 const currentTheme = computed(() => {
   const theme = activeTheme.value.theme

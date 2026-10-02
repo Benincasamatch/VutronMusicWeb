@@ -73,7 +73,7 @@
       <hr />
       <div class="item" @click="backgroundModal.show = true">背景设置</div>
       <div class="item" @click="setFontModal = true">歌词设置</div>
-      <div class="item" @click="setSaveThemeModal = true">保存播放器主题</div>
+      <div v-if="!isWeb" class="item" @click="setSaveThemeModal = true">保存播放器主题</div>
     </ContextMenu>
   </div>
 </template>
@@ -100,6 +100,9 @@ import { storeToRefs } from 'pinia'
 import { ref, provide, computed, watch } from 'vue'
 
 const playPageContextMenu = ref<InstanceType<typeof ContextMenu>>()
+
+// Web 版：截屏（get-screenshot）等桌面专属能力不可用，对应入口需隐藏
+const isWeb = window.env?.isWeb || false
 
 const stateStore = useNormalStateStore()
 const {

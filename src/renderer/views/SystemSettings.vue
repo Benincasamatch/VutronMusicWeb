@@ -27,22 +27,22 @@
         <div class="tab" :class="{ active: tab === 'general' }" @click="updateTab(0)">{{
           $t('settings.nav.general')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'lyric' }" @click="updateTab(1)">{{
+        <div v-if="!isWeb" class="tab" :class="{ active: tab === 'lyric' }" @click="updateTab(1)">{{
           isWindows ? $t('settings.nav.osdLyric') : $t('settings.nav.lyricSetting')
         }}</div>
         <div class="tab" :class="{ active: tab === 'musicSource' }" @click="updateTab(2)">{{
           $t('settings.nav.music')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'unblock' }" @click="updateTab(3)">{{
+        <div v-if="!isWeb" class="tab" :class="{ active: tab === 'unblock' }" @click="updateTab(3)">{{
           $t('settings.nav.unblock')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'shortcut' }" @click="updateTab(4)">{{
+        <div v-if="!isWeb" class="tab" :class="{ active: tab === 'shortcut' }" @click="updateTab(4)">{{
           $t('settings.nav.shortcut')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'misc' }" @click="updateTab(5)">{{
+        <div v-if="!isWeb" class="tab" :class="{ active: tab === 'misc' }" @click="updateTab(5)">{{
           $t('settings.nav.misc')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'update' }" @click="updateTab(6)">{{
+        <div v-if="!isWeb" class="tab" :class="{ active: tab === 'update' }" @click="updateTab(6)">{{
           $t('settings.nav.update')
         }}</div>
       </div>
@@ -101,7 +101,7 @@
               <CustomSelect v-model="selectLanguage" :options="languageOption" />
             </div>
           </div>
-          <div v-if="!isMac" class="item">
+          <div v-if="!isMac && !isWeb" class="item">
             <div class="left">
               <div class="title">{{ $t('settings.general.closeAppOption.text') }}</div>
             </div>
@@ -109,7 +109,7 @@
               <CustomSelect v-model="closeAppOption" :options="closeOptions" />
             </div>
           </div>
-          <div v-if="!isMac" class="item">
+          <div v-if="!isMac && !isWeb" class="item">
             <div class="left">
               <div class="title">{{ $t('settings.general.trayColor.text') }}</div>
             </div>
@@ -481,7 +481,7 @@
               ><div class="title">{{ $t('settings.plugin.title') }}</div></div
             >
             <div class="right">
-              <button @click="uploadPlugin">导入</button>
+              <button v-if="!isWeb" @click="uploadPlugin">导入</button>
               <button :style="{ marginLeft: '1rem' }">刷新</button>
             </div>
           </div>
@@ -552,7 +552,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="item">
+                <div v-if="!isWeb" class="item">
                   <div class="left"
                     ><div class="title"
                       >{{ $t('settings.autoCacheTrack.path') }}: {{ autoCacheTrack.path }}</div
@@ -581,7 +581,7 @@
                     ><CustomSelect v-model="musicQuality" :options="musicQualityOptions"
                   /></div>
                 </div>
-                <div class="item">
+                <div v-if="!isWeb" class="item">
                   <div class="left"
                     ><div class="title"
                       >{{
@@ -666,7 +666,7 @@
                   <button @click="showAddInstanceModal = true">添加</button>
                 </div>
               </div>
-              <div class="item">
+              <div v-if="!isWeb" class="item">
                 <div class="left">
                   <div class="title">已匹配流媒体歌曲</div>
                 </div>
@@ -674,7 +674,7 @@
                   <span class="plugin-status-text">{{ streamMatchCount }} 首</span>
                 </div>
               </div>
-              <div class="item">
+              <div v-if="!isWeb" class="item">
                 <div class="left">
                   <div class="title">清理匹配信息</div>
                 </div>
@@ -742,14 +742,14 @@
                   </div>
                 </div>
               </div>
-              <div class="item">
+              <div v-if="!isWeb" class="item">
                 <div class="left"
                   ><div class="title">{{ $t('localMusic.clearLocalMusic.text') }}</div
                   ><div class="description">{{ $t('localMusic.clearLocalMusic.desc') }}</div></div
                 >
                 <div class="right"><button @click="deleteLocalMusic">确定</button></div>
               </div>
-              <div class="item">
+              <div v-if="!isWeb" class="item">
                 <div class="left"
                   ><div class="title">{{ $t('localMusic.embedCoverArt.text') }}</div></div
                 >
@@ -757,7 +757,7 @@
                   ><CustomSelect v-model="localMusic.embedCoverArt" :options="embedCoverArtOption"
                 /></div>
               </div>
-              <div class="item">
+              <div v-if="!isWeb" class="item">
                 <div class="left"
                   ><div class="title">{{ $t('localMusic.embedStyle.text') }}</div></div
                 >
@@ -775,7 +775,7 @@
               <span class="card-toggle">{{ cardCollapsed.player ? '▶' : '▼' }}</span>
             </div>
             <div v-show="!cardCollapsed.player" class="card-body">
-              <div class="item">
+              <div v-if="!isWeb" class="item">
                 <div class="left"
                   ><div class="title">{{ $t('settings.general.showTimeOrID.text') }}</div></div
                 >
@@ -858,7 +858,7 @@
                   </div>
                 </div>
               </div>
-              <div v-if="isElectron" class="item">
+              <div v-if="isElectron && !isWeb" class="item">
                 <div class="left"
                   ><div class="title">{{ $t('settings.general.perventSuspend') }}</div></div
                 >
@@ -1502,6 +1502,7 @@ const isElectron = window.env?.isElectron || false
 const isMac = window.env?.isMac
 const isLinux = window.env?.isLinux
 const isWindows = window.env?.isWindows
+const isWeb = window.env?.isWeb || false
 
 const activePlugin = computed(() => {
   const libs = pluginServices.value.filter((item) => item.type === 'library')
@@ -1584,6 +1585,8 @@ const toggleLoadFull = (ser: service) => {
 const streamMatchCount = ref(0)
 
 const getStreamMatchCountData = async () => {
+  // 桌面专属通道，Web 版无对应 UI，跳过
+  if (isWeb) return
   streamMatchCount.value = (await window.mainApi?.invoke('getStreamMatchCount')) as number
 }
 
@@ -1800,7 +1803,9 @@ const updateTab = (index: number) => {
   const tabs = ['general', 'lyric', 'musicSource', 'unblock', 'shortcut', 'misc', 'update']
   const tabName = tabs[index]
   tab.value = tabName
-  slideTop.value = index * 40
+  // Web 版隐藏了桌面专属标签，指示条按可见标签位置计算
+  const visibleTabs = isWeb ? ['general', 'musicSource'] : tabs
+  slideTop.value = Math.max(0, visibleTabs.indexOf(tabName)) * 40
 }
 
 const slideTop = ref(0)
@@ -1877,6 +1882,8 @@ watch(searchPriority, persistPriority, { deep: true })
 watch(trackInfoOrder, persistPriority, { deep: true })
 
 const getCacheTracksInfo = () => {
+  // 桌面专属通道（磁盘缓存），Web 版无对应 UI，跳过避免无谓调用
+  if (isWeb) return
   window.mainApi?.invoke('getCacheTracksInfo').then((res) => {
     cacheTracksInfo.length = res.length
     cacheTracksInfo.size = res.size
@@ -2113,7 +2120,8 @@ onMounted(() => {
   updatePadding(64)
   getAllOutputDevices()
   getVersion()
-  getFontList()
+  // 系统字体列表为桌面专属通道，Web 版对应 UI 已隐藏
+  if (!isWeb) getFontList()
   loadSourcePriority()
   // 开始监听 body 元素的属性变化
   observer.observe(document.body, {

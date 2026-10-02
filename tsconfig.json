@@ -25,6 +25,10 @@
     "allowJs": true
   },
   "include": ["src/renderer", "src/types"],
+  // 浏览器版 shim（src/renderer/web）属于 web/ 子项目：由 web/tsconfig.json 检查、
+  // web/vite.config.ts 构建，含 .ts 扩展名导入与 web/shared 契约（在桌面 rootDir 之外），
+  // 故从桌面版类型检查中排除，避免破坏桌面版 vue-tsc --noEmit。
+  "exclude": ["node_modules", "dist", "src/renderer/web"],
   "references": [
     {
       "path": "./tsconfig.node.json"

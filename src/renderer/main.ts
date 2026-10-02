@@ -28,6 +28,8 @@ declare global {
       isMac: boolean
       isWindows: boolean
       isDev: boolean
+      /** Web 版（浏览器 UI + 服务端播放）为 true；桌面版为 undefined */
+      isWeb?: boolean
     }
     vutronmusic?: {
       progress: number
@@ -37,6 +39,22 @@ declare global {
       isLiked: boolean
       repeatMode: string
       lyric: { lrc: string; tlyric: string; romalrc: string }
+    }
+    /** Web 版登录态桥接：仅由 src/renderer/web/auth.ts 安装，桌面版为 undefined */
+    vwAuth?: {
+      logout: () => Promise<void>
+    }
+    /** Web 版桥接：仅由 src/renderer/web 安装，桌面版为 undefined */
+    vwWeb?: {
+      isWeb: true
+      localSourceReady: () => Promise<boolean>
+      primeSources?: () => Promise<void>
+      /** true 表示曲目推进由服务器掌握，浏览器不得自行切歌 */
+      serverDrivenPlayback?: boolean
+      /** 浏览器自然播完时回调：由服务器决定下一首 */
+      onLocalTrackEnded?: () => void
+      /** 本地媒体连续失败时请求服务器切歌 */
+      requestServerNext?: () => void
     }
     LottieAnimation: (typeof import('vue3-lottie'))['Vue3Lottie']
   }

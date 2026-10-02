@@ -282,8 +282,19 @@ const { scanDir } = toRefs(pluginStore)
 const hasCustomTitleBar = inject('hasCustomTitleBar', ref(true))
 const isMac = computed(() => window.env?.isMac)
 
+/** 插件列表由 App 启动时异步加载，页面可能在 services 就绪前挂载；等待一段时间再判定登录态 */
+const waitForLocalService = async (timeoutMs = 5000) => {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const found = services.value.find((s) => s.type === 'local')
+    if (found) return found
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  return undefined
+}
+
 const checkLocalStatus = async () => {
-  const localSrv = services.value.find((s) => s.type === 'local')
+  const localSrv = await waitForLocalService()
   if (!localSrv) return
 
   try {

@@ -168,6 +168,7 @@
     "lyricOffset": "歌詞時間調整",
     "play": "播放",
     "addToQueue": "新增至佇列",
+    "addedToQueue": "已加入待播佇列",
     "accurateMatch": "精確匹配",
     "addToLocalPlaylist": "新增至本地歌單",
     "removeTrackFromPlaylist": "從歌單中刪除",

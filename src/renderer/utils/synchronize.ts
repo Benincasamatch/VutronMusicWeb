@@ -54,6 +54,31 @@ const shouldSend = computed(() => {
 // macOS 和 Windows 使用 Media Session API（Windows 上映射到 SMTC）
 const supportsMediaSession = 'mediaSession' in navigator
 
+/**
+ * 安全地更新 MediaSession 播放位置。
+ * 浏览器对非法区间会抛 TypeError（典型场景：换曲后音频元数据尚未加载，duration 还是 0，
+ * 而 position 已是要对齐的秒数）。该异常发生在 Vue watcher 内，会中断整批更新队列，
+ * 表现为播放栏等信息停止刷新，因此这里统一做有限性判断与钳制，并吞掉异常。
+ */
+function setPositionStateSafe(state: {
+  duration: number
+  playbackRate: number
+  position: number
+}): void {
+  if (!supportsMediaSession) return
+  const { duration, playbackRate, position } = state
+  if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(position)) return
+  try {
+    navigator.mediaSession.setPositionState({
+      duration,
+      playbackRate: Number.isFinite(playbackRate) && playbackRate > 0 ? playbackRate : 1,
+      position: Math.min(Math.max(0, position), duration)
+    })
+  } catch {
+    /* 非法区间直接忽略，等下一次有效更新 */
+  }
+}
+
 const currentLyric = computed(() => {
   const track = currentTrack.value
   const text = track ? `${track.artists[0]?.name} - ${track.name}` : '听你想听的音乐'
@@ -134,7 +159,7 @@ watch(playbackRate, (value) => {
   }
 
   if (supportsMediaSession) {
-    navigator.mediaSession.setPositionState({
+    setPositionStateSafe({
       duration: duration.value,
       playbackRate: value,
       position: getCurrentTime()
@@ -152,7 +177,7 @@ watch(
 
     if (supportsMediaSession) {
       navigator.mediaSession.playbackState = value ? 'playing' : 'paused'
-      navigator.mediaSession.setPositionState({
+      setPositionStateSafe({
         duration: duration.value,
         playbackRate: playbackRate.value,
         position: getCurrentTime()
@@ -194,7 +219,7 @@ watch(
     if (supportsMediaSession && value) {
       primeMediaSession()?.finally(() => {
         updateMediaSessionMetaData(value)
-        navigator.mediaSession.setPositionState({
+        setPositionStateSafe({
           duration: duration.value,
           playbackRate: playbackRate.value,
           position: getCurrentTime()
@@ -218,7 +243,7 @@ watch(setSeek, (value) => {
   })
 
   if (supportsMediaSession) {
-    navigator.mediaSession.setPositionState({
+    setPositionStateSafe({
       duration: duration.value,
       playbackRate: playbackRate.value,
       position: getCurrentTime()
@@ -366,7 +391,7 @@ function initMediaSession() {
         artwork: []
       })
     }
-    navigator.mediaSession.setPositionState({
+    setPositionStateSafe({
       duration: duration.value,
       playbackRate: playbackRate.value,
       position: getCurrentTime()

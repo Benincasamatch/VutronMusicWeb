@@ -167,3 +167,12 @@ cd docs && yarn build  # 生产构建
 - 产品文档 → `docs/src/product/`
 - 技术规格 → `docs/src/spec/`
 - 架构决策 → `docs/src/adr/`
+
+## Web 版（局域网）
+
+仓库内另有独立的局域网 Web 版，位于 `web/`，复用本仓库的 `src/renderer` 界面与 `src/public/plugin` 插件：
+
+- 服务端：`web/server`（Fastify + node:sqlite + 插件 Worker + mpv/ffplay 输出），前端 shim 在 `src/renderer/web`。
+- 运行与配置见 `web/README.md` 与 `web/.env.example`；前端用 `vite --config web/vite.config.ts` 构建到 `web/dist/client`。
+- 数据与账号都在 Web 版自己的目录（默认 `web/data`），与桌面版互不影响；桌面版的 Electron 路径、IPC、托盘等能力在 Web 版被适配或无害化。
+- 改动 `src/renderer` 中同时被两端使用的文件时，必须同时跑两套类型检查：仓库根 `vue-tsc --noEmit` 与 `cd web && tsc --noEmit -p tsconfig.json`。

@@ -93,7 +93,7 @@
             <div v-if="!localScanDir.length" class="empty-hint">{{ $t('login.emptyScanDir') }}</div>
           </div>
           <div class="dir-actions">
-            <button @click="chooseDir">{{ $t('login.chooseDir') }}</button>
+            <button v-if="!isWeb" @click="chooseDir">{{ $t('login.chooseDir') }}</button>
             <button @click="showManualInput = !showManualInput">手动输入</button>
           </div>
           <div v-if="showManualInput" class="manual-input-row">
@@ -209,6 +209,8 @@ const cookie = ref('')
 
 const localScanDir = ref<string[]>([])
 const showManualInput = ref(false)
+// Web 版没有系统文件夹对话框，只能手动输入路径
+const isWeb = window.env?.isWeb || false
 const manualDir = ref('')
 
 const saveTypeServices = computed(() => {

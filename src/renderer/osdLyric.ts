@@ -22,6 +22,8 @@ declare global {
       isMac: boolean
       isWindows: boolean
       isDev: boolean
+      /** Web 版（浏览器 UI + 服务端播放）为 true；桌面版为 undefined */
+      isWeb?: boolean
     }
   }
 }

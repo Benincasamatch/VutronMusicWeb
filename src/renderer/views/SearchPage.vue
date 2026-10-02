@@ -64,37 +64,52 @@ const tagMap = {
 const pluginStore = usePluginMusic()
 const { services } = storeToRefs(pluginStore)
 
-const tracks = reactive<
-  Record<PluginId, { data: Track[]; count: number; sourceContext: Record<string, any> }>
->(
-  Object.fromEntries(services.value.map((s) => [s.code, { data: [], count: 0, sourceContext: {} }]))
+type SearchSlot<T> = { data: T[]; count: number; sourceContext: Record<string, any> }
+
+const createSlot = <T>(): SearchSlot<T> => ({ data: [], count: 0, sourceContext: {} })
+
+/**
+ * services 两端到达时机不同：桌面版走 IPC 基本已就绪，Web 版是异步 HTTP。
+ * 页面可能在 services 为空时挂载，此时 Object.fromEntries 建出的表里没有任何槽位，
+ * 搜索返回后执行 `tracks[p].count = ...` 就会抛 "Cannot set properties of undefined"。
+ * 因此槽位改为按需创建（不新增全局状态，只在写入点兜底），写入一律经 ensureSlot 取。
+ */
+const ensureSlot = <T>(
+  map: Partial<Record<PluginId, SearchSlot<T>>>,
+  pluginId: PluginId
+): SearchSlot<T> => {
+  let slot = map[pluginId]
+  if (!slot) {
+    slot = createSlot<T>()
+    map[pluginId] = slot
+  }
+  return slot
+}
+
+const tracks = reactive<Partial<Record<PluginId, SearchSlot<Track>>>>(
+  Object.fromEntries(services.value.map((s) => [s.code, createSlot<Track>()]))
 )
 
-const albums = reactive<
-  Record<PluginId, { data: Album[]; count: number; sourceContext: Record<string, any> }>
->(
-  Object.fromEntries(services.value.map((s) => [s.code, { data: [], count: 0, sourceContext: {} }]))
+const albums = reactive<Partial<Record<PluginId, SearchSlot<Album>>>>(
+  Object.fromEntries(services.value.map((s) => [s.code, createSlot<Album>()]))
 )
 
-const artists = reactive<
-  Record<PluginId, { data: Artist[]; count: number; sourceContext: Record<string, any> }>
->(
-  Object.fromEntries(services.value.map((s) => [s.code, { data: [], count: 0, sourceContext: {} }]))
+const artists = reactive<Partial<Record<PluginId, SearchSlot<Artist>>>>(
+  Object.fromEntries(services.value.map((s) => [s.code, createSlot<Artist>()]))
 )
 
-const playlists = reactive<
-  Record<PluginId, { data: Playlist[]; count: number; sourceContext: Record<string, any> }>
->(
-  Object.fromEntries(services.value.map((s) => [s.code, { data: [], count: 0, sourceContext: {} }]))
+const playlists = reactive<Partial<Record<PluginId, SearchSlot<Playlist>>>>(
+  Object.fromEntries(services.value.map((s) => [s.code, createSlot<Playlist>()]))
 )
 
-const mvs = reactive<
-  Record<PluginId, { data: Mv[]; count: number; sourceContext: Record<string, any> }>
->(
-  Object.fromEntries(services.value.map((s) => [s.code, { data: [], count: 0, sourceContext: {} }]))
+const mvs = reactive<Partial<Record<PluginId, SearchSlot<Mv>>>>(
+  Object.fromEntries(services.value.map((s) => [s.code, createSlot<Mv>()]))
 )
 
 const searchResult = { tracks, albums, artists, playlists, mvs }
+/** 按 tab + 插件取槽位，缺失时按需创建（用于读取 sourceContext / count 等） */
+const slotOf = (tab: keyof typeof searchResult, pluginId: PluginId): SearchSlot<any> =>
+  ensureSlot(searchResult[tab] as Partial<Record<PluginId, SearchSlot<any>>>, pluginId)
 const { searchTab } = storeToRefs(useNormalStateStore())
 const { pluginMethodCall } = pluginStore
 const route = useRoute()
@@ -141,7 +156,19 @@ const displayCount = computed(() => {
   return streamTargets.reduce((sum, p) => sum + (searchResult[searchTab.value][p]?.count || 0), 0)
 })
 
+/**
+ * Web 版插件列表异步到达：若 services 尚未就绪就发起搜索，pluginMethodCall 会因
+ * pluginId 未注册直接返回空结果，stream 类型判定也会失准。仅在为空时短暂等待，就绪则立即返回。
+ */
+const waitForServices = async (timeoutMs = 5000) => {
+  const started = Date.now()
+  while (services.value.length === 0 && Date.now() - started < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
 const loadData = async (reset = true) => {
+  await waitForServices()
   const currentPlugin = plugin.value
   const currentTab = searchTab.value
 
@@ -158,19 +185,10 @@ const loadData = async (reset = true) => {
     }
   }
 
-  // 重置所有目标槽位
-  if (reset) {
-    targets.forEach((p) => {
-      const slot = searchResult[currentTab][p]
-      if (slot) slot.data = []
-    })
-  }
-
-  // 并行搜索所有目标
+  // 并行搜索所有目标；sourceContext 从按需槽位读取（reset 的清空延后到写入阶段，按需创建槽位）
   const results = await Promise.all(
     targets.map(async (p) => {
-      const slot = searchResult[currentTab][p]
-      const sourceContext = slot?.sourceContext || {}
+      const sourceContext = slotOf(currentTab, p).sourceContext || {}
       const res = await pluginMethodCall(p, 'search', {
         tab: currentTab,
         keywords: keywords.value,
@@ -185,8 +203,9 @@ const loadData = async (reset = true) => {
   for (const { plugin: p, res } of results) {
     switch (currentTab) {
       case 'tracks': {
-        tracks[p].count = res.count
-        tracks[p].sourceContext = res.sourceContext
+        const slot = ensureSlot(tracks, p)
+        slot.count = res.count
+        slot.sourceContext = res.sourceContext
         const data = (res.data as Track[]).map((item) => ({
           ...item,
           pluginId: p,
@@ -194,12 +213,14 @@ const loadData = async (reset = true) => {
           artists: item.artists.map((it) => ({ ...it, pluginId: p })),
           albumArtists: item.albumArtists.map((it) => ({ ...it, pluginId: p }))
         }))
-        tracks[p].data.push(...data)
+        if (reset) slot.data = data
+        else slot.data.push(...data)
         break
       }
       case 'albums': {
-        albums[p].count = res.count
-        albums[p].sourceContext = res.sourceContext
+        const slot = ensureSlot(albums, p)
+        slot.count = res.count
+        slot.sourceContext = res.sourceContext
         const data = (res.data as Album[]).map((item) => ({
           ...item,
           artists: item.artists?.map((it) => ({
@@ -208,33 +229,39 @@ const loadData = async (reset = true) => {
           })),
           pluginId: p
         }))
-        albums[p].data.push(...data)
+        if (reset) slot.data = data
+        else slot.data.push(...data)
         break
       }
       case 'artists': {
-        artists[p].count = res.count
-        artists[p].sourceContext = res.sourceContext
+        const slot = ensureSlot(artists, p)
+        slot.count = res.count
+        slot.sourceContext = res.sourceContext
         const data = (res.data as Artist[]).map((item) => ({
           ...item,
           pluginId: p
         }))
-        artists[p].data.push(...data)
+        if (reset) slot.data = data
+        else slot.data.push(...data)
         break
       }
       case 'playlists': {
-        playlists[p].count = res.count
-        playlists[p].sourceContext = res.sourceContext
+        const slot = ensureSlot(playlists, p)
+        slot.count = res.count
+        slot.sourceContext = res.sourceContext
         const data = (res.data as Playlist[]).map((item) => ({
           ...item,
           pluginId: p,
           creator: { ...item.creator, pluginId: p }
         }))
-        playlists[p].data.push(...data)
+        if (reset) slot.data = data
+        else slot.data.push(...data)
         break
       }
       case 'mvs': {
-        mvs[p].count = res.count
-        mvs[p].sourceContext = res.sourceContext
+        const slot = ensureSlot(mvs, p)
+        slot.count = res.count
+        slot.sourceContext = res.sourceContext
         const data = (res.data as Mv[]).map((item) => ({
           ...item,
           pluginId: p,
@@ -243,7 +270,8 @@ const loadData = async (reset = true) => {
             pluginId: p
           }))
         }))
-        mvs[p].data.push(...data)
+        if (reset) slot.data = data
+        else slot.data.push(...data)
         break
       }
       default:

@@ -679,28 +679,34 @@ export const usePluginMusic = defineStore(
         if (!result.data) return
         _playlistCategory[plugin].static = result.data.static
         _playlistCategory[plugin].tagList = result.data.tagList
-        activeCats[plugin].playlist = result.data.static[0].name
+        // 插件可能返回空分类（例如未登录/无版权内容），此处不能假定有元素
+        const firstPlaylist = result.data.static?.[0]?.name
+        if (firstPlaylist) activeCats[plugin].playlist = firstPlaylist
       })
 
     const _getArtistCategory = (plugin: PluginId) =>
       pluginMethodCall(plugin, 'getArtistCatlist').then((result) => {
         if (!result.data) return
         artistCategory[plugin] = result.data
-        activeCats[plugin].artist = result.data.map((it) => [it.name, it.sub[0].name])
+        activeCats[plugin].artist = result.data
+          .filter((it) => it?.sub?.length)
+          .map((it) => [it.name, it.sub[0].name])
       })
 
     const _getAlbumCategory = (plugin: PluginId) =>
       pluginMethodCall(plugin, 'getAlbumCatlist').then((result) => {
         if (!result.data) return
         albumCategory[plugin] = result.data
-        activeCats[plugin].album = result.data[0].name
+        const firstAlbum = result.data[0]?.name
+        if (firstAlbum) activeCats[plugin].album = firstAlbum
       })
 
     const _getTrackCategory = (plugin: PluginId) =>
       pluginMethodCall(plugin, 'getTrackCatlist').then((result) => {
         if (!result.data) return
         trackCategory[plugin] = result.data
-        activeCats[plugin].track = result.data[0].name
+        const firstTrack = result.data[0]?.name
+        if (firstTrack) activeCats[plugin].track = firstTrack
       })
 
     const getExploreBtn = async (plugin: PluginId) => {

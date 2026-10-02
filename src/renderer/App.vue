@@ -295,6 +295,9 @@ const handleChanelEvent = () => {
 
 getPlugins().then(async () => {
   pluginMusicStore.syncPluginEnable()
+  // Web 版：本地音源的目录与登录态来自服务器（桌面版靠插件 store 持久化），
+  // 必须在 fetchData 判定「哪些音源已登录」之前完成同步，否则首次打开不会拉取曲目。
+  await window.vwWeb?.primeSources?.()
   fetchData()
 })
 

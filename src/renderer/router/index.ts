@@ -106,7 +106,7 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   document.documentElement.scrollTo({ top: 0 })
 
   const pluginMusicStore = usePluginMusic()
@@ -137,6 +137,12 @@ router.beforeEach((to, from, next) => {
     const hasLoggedIn = services.some((s) => s.type === sourceType && s.status === 'login')
     if (!hasLoggedIn) {
       if (to.name === 'login') return next()
+
+      // Web 版：本地音乐目录由服务器配置，首次打开时插件 store 尚无登录态。
+      // 服务器已配置目录就直接进入页面，由页面自身的 systemPing 完成登录态同步。
+      if (sourceType === 'local') {
+        if (window.vwWeb && (await window.vwWeb.localSourceReady())) return next()
+      }
 
       const plugins = services.filter((s) => s.type === sourceType)
       const pluginId = plugins[0]?.code ?? 'netease'

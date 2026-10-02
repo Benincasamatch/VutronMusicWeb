@@ -76,6 +76,7 @@
             ><svg-icon icon-class="next"
           /></button-icon>
           <button-icon
+            v-if="!isWeb"
             :title="$t('player.osdLyrics')"
             :class="{ active: show }"
             @click.stop="show = !show"
@@ -182,6 +183,9 @@ import { Artist } from '@/types/plugin'
 
 const router = useRouter()
 const route = useRoute()
+
+// Web 版（浏览器 UI + 服务端播放）
+const isWeb = window.env?.isWeb || false
 
 const playerStore = usePlayerStore()
 const { playNext, moveToFMTrash, playPrev, playOrPause, switchRepeatMode, toggleMute } = playerStore

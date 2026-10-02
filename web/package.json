@@ -1,0 +1,27 @@
+{
+  "name": "vutronmusic-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "VutronMusic 局域网 Web 版服务端",
+  "scripts": {
+    "dev:server": "tsx watch server/index.ts",
+    "start": "tsx server/index.ts",
+    "dev:client": "cd .. && vite --config web/vite.config.ts",
+    "build:client": "cd .. && vite build --config web/vite.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@fastify/websocket": "^10.0.1",
+    "ws": "^8.22.0"
+  }
+}

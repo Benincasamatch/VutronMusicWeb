@@ -34,7 +34,7 @@
               <button @click="activeBG.src = 'snow'">纯净雪域</button>
               <button @click="activeBG.src = 'sunshine'">落日余晖</button>
             </template>
-            <button v-if="activeBG.type !== 'api'" @click="selectSource">{{
+            <button v-if="activeBG.type !== 'api' && !isWeb" @click="selectSource">{{
               $t('settings.lyric.browse')
             }}</button>
             <button @click="reset">{{ $t('settings.lyric.reset') }}</button>
@@ -162,6 +162,9 @@ const stateStore = useNormalStateStore()
 const { backgroundModal } = storeToRefs(stateStore)
 const playerThemeStore = usePlayerThemeStore()
 const { activeBG, activeTheme } = storeToRefs(playerThemeStore)
+
+// Web 版没有系统文件对话框（showOpenDialog 未映射），隐藏本地文件浏览
+const isWeb = window.env?.isWeb || false
 
 const { t } = useI18n()
 

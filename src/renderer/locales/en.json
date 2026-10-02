@@ -168,6 +168,7 @@
     "lyricOffset": "Lyric Offset Adjustment",
     "play": "Play",
     "addToQueue": "Add to Queue",
+    "addedToQueue": "Added to queue",
     "accurateMatch": "Exact Match",
     "addToLocalPlaylist": "Add to Local Playlist",
     "removeTrackFromPlaylist": "Remove from Playlist",
