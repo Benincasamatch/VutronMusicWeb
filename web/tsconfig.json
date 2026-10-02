@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "..",
+    "paths": {
+      "@vutron/*": ["src/*"]
+    }
+  },
+  "include": [
+    "server/**/*.ts",
+    "shared/**/*.ts",
+    "../src/types/**/*.ts",
+    "../src/renderer/web/**/*.ts"
+  ],
+  // serverMirror / localSource / bootWeb 与渲染层 store 深度耦合（依赖 '@' 别名、.vue 与 pinia 类型增强），
+  // 只能用 vue-tsc 检查，且桌面 tsconfig 已排除 src/renderer/web；此处排除避免污染本项目的类型检查。
+  // 这三个文件的行为由浏览器端联调验证。
+  "exclude": [
+    "../src/renderer/web/serverMirror.ts",
+    "../src/renderer/web/localSource.ts",
+    "../src/renderer/web/bootWeb.ts"
+  ]
+}

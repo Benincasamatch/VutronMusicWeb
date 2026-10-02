@@ -1,0 +1,608 @@
+{
+  "nav": {
+    "home": "Home",
+    "search": "Search",
+    "explore": "Explore",
+    "library": "Library",
+    "stream": "Stream",
+    "localMusic": "Local Music",
+    "settings": "Settings",
+    "github": "GitHub Repository",
+    "log": "Open Log Folder",
+    "error": "Unknown Error",
+    "track": "Track",
+    "artist": "Artist",
+    "album": "Album",
+    "playlist": "Playlist",
+    "user": "User",
+    "mv": "MV",
+    "chart": "Charts",
+    "newTrack": "New Tracks",
+    "newAlbum": "New Albums"
+  },
+  "home": {
+    "recommendPlaylist": "Recommended Playlists",
+    "recommendArtist": "Recommended Artists",
+    "newAlbum": "New Albums",
+    "charts": "Charts",
+    "seeMore": "See All"
+  },
+  "library": {
+    "userProfileMenu": {
+      "logout": "Logout",
+      "settings": "Settings"
+    },
+    "playlist": {
+      "playlist": "Playlist",
+      "addToPlaylist": "Add to Playlist",
+      "title": "Playlist Title",
+      "setPrivate": "Set as Private Playlist",
+      "newPlaylist": "New Playlist",
+      "updatedAt": "Last Updated",
+      "search": "Search",
+      "modifyTitle": "Modify playlist title",
+      "modifyDesc": "Modify playlist description"
+    },
+    "likedSongs": "Liked Songs",
+    "albums": "Albums",
+    "artists": "Artists",
+    "mvs": "MVs",
+    "cloudDisk": "Cloud Disk",
+    "playHistory": {
+      "title": "Play History",
+      "all": "All Time",
+      "week": "Past Week"
+    }
+  },
+  "explore": {
+    "allPlaylist": "Playlists",
+    "recommendPlaylist": "Recommended Playlists",
+    "recommendArtist": "Artists",
+    "newAlbum": "New Albums",
+    "charts": "Charts",
+    "seeMore": "See All"
+  },
+  "streamMusic": {
+    "track": "All Track",
+    "song": "Stream Songs",
+    "playlist": {
+      "text": "Stream Playlist",
+      "addToPlaylist": "Add to Stream Playlist",
+      "newPlaylist": "New Stream Playlist"
+    },
+    "album": "Album",
+    "artist": "Artist"
+  },
+  "localMusic": {
+    "latedAdd": "Recently Added",
+    "songs": "Local Songs",
+    "playlist": {
+      "text": "Local Playlist",
+      "addToPlaylist": "Add to Local Playlist",
+      "newPlaylist": "New Local Playlist"
+    },
+    "albums": "Albums",
+    "artists": "Artists",
+    "albumArtist": "Album Artist",
+    "dirName": "Folder Name",
+    "placeholder": "Search Local Songs",
+    "scrollToTop": "Scroll to Top",
+    "localMusicFolder": {
+      "text": "Local Music Folder Path",
+      "desc": "Supports multiple directories. On Linux, use manual input for multiple directories",
+      "title": "Manually enter local music directories",
+      "placeholder": "Enter local music directories (multiple supported, one per line)"
+    },
+    "enableLocalMusic": "Enable Local Music",
+    "clearLocalMusic": {
+      "text": "Clear Local Music Info",
+      "desc": "This action will only remove local music metadata from the app, not delete actual files."
+    },
+    "replayGain": {
+      "text": "Volume Normalization",
+      "desc": "This feature reads ReplayGain metadata from local files; it does not calculate values."
+    },
+    "embeddedInformation": "Prioritize Embedded Track Info",
+    "trackInfoOrder": {
+      "text": "Cover Art Fetch Order",
+      "desc": "Sets the order for fetching local music cover art. Drag to adjust priority.",
+      "path": "From song directory",
+      "online": "From online sources",
+      "embedded": "From embedded metadata"
+    },
+    "embedCoverArt": {
+      "text": "Embed Cover Art into Local Music Files",
+      "desc": "Embedding cover art will overwrite any existing cover images.",
+      "none": "Do Not Embed",
+      "embedded": "Embedded",
+      "path": "In Song Directory",
+      "both": "Both"
+    },
+    "embedStyle": {
+      "text": "Method For Writing when A Cover Image Already Exists",
+      "ignore": "Ignore",
+      "rewrite": "Rewrite"
+    },
+    "positionTrack": "Locate Track"
+  },
+  "artist": {
+    "artist": "Artist",
+    "withAlbums": "Albums",
+    "videos": "MVs",
+    "follow": "Follow",
+    "following": "Following",
+    "latestRelease": "Latest Release",
+    "latestMV": "Latest MV",
+    "popularSongs": "Popular Tracks",
+    "showMore": "Show More",
+    "showLess": "Show Less",
+    "albums": "Albums",
+    "EPsSingles": "EPs & Singles",
+    "similarArtists": "Similar Artists",
+    "artistDesc": "Artist Biography"
+  },
+  "album": {
+    "released": "Released",
+    "albumDesc": "Album Description"
+  },
+  "playlist": {
+    "search": "Search Playlist Tracks"
+  },
+  "contextMenu": {
+    "defaultSort": "Default Sort",
+    "name": "Sort by Name",
+    "createTime": "Sort by Date Created",
+    "playCount": "Sort by Play Count",
+    "ascOrder": "Ascending Order",
+    "descOrder": "Descending Order",
+    "selectAll": "Select All",
+    "batchOperation": "Batch Actions",
+    "refreshData": "Refresh Data",
+    "reScan": "Rescan Tracks",
+    "showComment": "View Comments",
+    "showLyric": "Show Lyrics",
+    "setConvolver": "Sound Effects",
+    "setLyricBG": "Lyric Background Settings",
+    "playBackSpeed": "Playback Speed",
+    "pitch": "Pitch",
+    "lyricOffset": "Lyric Offset Adjustment",
+    "play": "Play",
+    "addToQueue": "Add to Queue",
+    "addedToQueue": "Added to queue",
+    "accurateMatch": "Exact Match",
+    "addToLocalPlaylist": "Add to Local Playlist",
+    "removeTrackFromPlaylist": "Remove from Playlist",
+    "editPlaylistInfo": "Edit playlist info",
+    "showInFolder": "Open in File Explorer",
+    "deletePlaylist": "Delete Playlist",
+    "removeFromPlaylist": "Remove from playlist",
+    "removeFromQueue": "Remove from queue",
+    "finish": "Finish",
+    "allPlaylists": "All Playlists",
+    "minePlaylists": "My Playlists",
+    "likedPlaylists": "Liked Playlists",
+    "openOnBrowser": "Open in Browser",
+    "copyURL": "Copy URL",
+    "copyId": "Copy ID",
+    "copySourceContext": "Copy Track Context",
+    "playMV": "Play MV",
+    "setFont": "Set Font"
+  },
+  "login": {
+    "login": "Login",
+    "phone": "Phone",
+    "email": "Email",
+    "password": "Password",
+    "loginText": "Login with {serviceName} Account",
+    "countryCode": "Country Code",
+    "usernameLogin": "Username Login",
+    "loginWithEmail": "Login with Email",
+    "loginWithPhone": "Login with Phone",
+    "loginWithQr": "Login with QrCode",
+    "loginWithCookie": "Login with Cookie",
+    "cookiePlaceholder": "Paste your Cookie string",
+    "errorNoCookie": "Please enter Cookie",
+    "noticeElectron": "Your password is hashed with MD5 locally before transmission to NetEase API. VutronMusic does not transmit your account data to any non-official servers.",
+    "removeDir": "Remove",
+    "emptyScanDir": "Set local music scan directory",
+    "chooseDir": "Choose Directory",
+    "setScanDir": "Set",
+    "errorNoScanDir": "Please set a scan directory"
+  },
+  "player": {
+    "play": "Play",
+    "pause": "Pause",
+    "previous": "Previous",
+    "moveToFMTrash": "Dislike",
+    "next": "Next",
+    "volume": "Volume",
+    "mute": "Mute",
+    "shuffle": "Shuffle",
+    "singleLoop": "Single Loop",
+    "sequence": "Sequential Play",
+    "playlist": "Playlist",
+    "download": "Download",
+    "addToPlaylist": "Add to Playlist",
+    "noAllowCauseLocal": "Local track; operation not allowed",
+    "osdLyrics": "Show Desktop Lyrics",
+    "nextUp": "Up Next",
+    "repeat": "Repeat",
+    "repeatTrack": "Repeat Track",
+    "resetPlayer": "Reset Player State",
+    "like": "Like",
+    "getFMTimeout": "Failed to fetch Personal FM (timeout)",
+    "getFMOverCount": "Too many retries for Personal FM; switch manually.",
+    "converlution": {
+      "title": "Convolution Reverb Effects",
+      "mainGain": "Dry Gain",
+      "sendGain": "Wet Gain",
+      "bright_hall": "Bright Hall",
+      "cardiod_35_10_spread": "Cardioid Spread",
+      "cinema_diningroom": "Cinema",
+      "dining_living_true_stereo": "Living Room",
+      "feedback_spring": "Feedback Spring",
+      "living_bedroom_leveled": "Bedroom",
+      "matrix_1": "Matrix Reverb",
+      "matrix_2": "Matrix Reverb 2",
+      "s2_r4_bd": "Cathedral",
+      "s3_r1_bd": "Stereo",
+      "spreader50_65ms": "Chamber",
+      "telephone": "Telephone",
+      "tim_omni_35_10_magnetic": "Magnetic Stereo",
+      "main_gain": "Dry Gain",
+      "send_gain": "Wet Gain"
+    },
+    "frequad": {
+      "title": "Equalizer Settings",
+      "reset": "Reset",
+      "classical": "Classical",
+      "dance": "Dance",
+      "electronic": "Electronic",
+      "pop": "Pop",
+      "rock": "Rock",
+      "slow": "Slow",
+      "soft": "Soft",
+      "subwoofer": "Subwoofer",
+      "vocal": "Vocal"
+    },
+    "fade": {
+      "fadeDuration": "Audio Fade In/Out Duration (seconds)",
+      "fadeDurationDesc": "Duration of volume fade when switching, playing, or pausing."
+    },
+    "volumeNormalization": {
+      "title": "Volume Normalization",
+      "desc": "Automatically balance loudness across tracks so all songs sound equally loud at the same volume level"
+    }
+  },
+  "common": {
+    "songs": "songs",
+    "play": "Play"
+  },
+  "settings": {
+    "nav": {
+      "general": "General",
+      "appearance": "Appearance",
+      "tray": "System Tray",
+      "extension": "Lyrics Extension",
+      "platformSetting": "Platform Settings",
+      "plugin": "Plugin Settings",
+      "musicSource": "Music Sources",
+      "lyricSetting": "Lrc Setting",
+      "lyric": "Main Window Lyrics",
+      "osdLyric": "Desktop Lyrics",
+      "trayLyric": "Tray Lyrics",
+      "localMusic": "Local Music",
+      "music": "Msc Setting",
+      "player": "Player Setting",
+      "netease": "Online Music",
+      "stream": "Stream Music",
+      "local": "Local Music",
+      "library": "Library",
+      "unblock": "Unblock",
+      "shortcut": "Shortcuts",
+      "misc": "Miscellaneous",
+      "update": "Update"
+    },
+    "general": {
+      "language": {
+        "text": "Language",
+        "zhHans": "简体中文",
+        "zhHant": "繁體中文",
+        "en": "English"
+      },
+      "showTimeOrID": {
+        "text": "Track List Display Option",
+        "time": "Duration",
+        "ID": "Track ID"
+      },
+      "showBanner": "Show Banner In Home Page",
+      "useCustomTitlebar": "Use Custom Titlebar (Restart Required)",
+      "outputDevice": {
+        "text": "Audio Output Device",
+        "deviceID": "default"
+      },
+      "closeAppOption": {
+        "text": "Exit Behavior",
+        "minimizeToTray": "Minimize to Tray",
+        "exit": "Exit Directly",
+        "ask": "Ask"
+      },
+      "musicQuality": {
+        "text": "Music Quality",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "lossless": "Lossless"
+      },
+      "lyricBackground": {
+        "text": "Show lyrics background",
+        "close": "Close",
+        "true": "Open",
+        "blur": "Blur cover",
+        "dynamic": "Dynamic",
+        "customize": "Customize background",
+        "colorMode": "Background Color Mode",
+        "extractdColor": {
+          "text": "Use cover gradient as background",
+          "desc": "The background color shown when background transparency is reduced"
+        }
+      },
+      "trayColor": {
+        "text": "Tray Icon Color",
+        "color": "Color",
+        "white": "White",
+        "black": "Black",
+        "auto": "Auto (Based on system theme)"
+      },
+      "logout": "Logout",
+      "showSongChorus": "Show chorus timestamps on the player-bar",
+      "clickToLyric": "Click empty area of the player-bar to enter lyrics page",
+      "jumpToLyricBegin": "Jump to begining of current lyric when seeking",
+      "perventSuspend": "Prevent system sleep during playback",
+      "forceFactor": "Ignore system scaling (force 100%, restart required)"
+    },
+    "theme": {
+      "auto": "Auto",
+      "light": "Light",
+      "dark": "Dark",
+      "accent": "Accent Color",
+      "blue": "Blue",
+      "purple": "Purple",
+      "orange": "Orange",
+      "cyan": "Cyan",
+      "Customize": "Customize"
+    },
+    "tray": {
+      "showLyric": "Show Tray Lyrics",
+      "showControl": "Show Control Buttons",
+      "showIcon": "Show Tray Icon",
+      "wordByWord": "Word-by-Word Highlight",
+      "playedColor": "Played Highlight Color (Dark)",
+      "playedColorLight": "Played Highlight Color (Light)",
+      "lyricScrollFrameRate": {
+        "text": "Lyric Scroll FPS",
+        "desc": "Higher values may cause flickering; adjust carefully."
+      },
+      "lyricFrameWidth": "Lyric Scroll Width (px)"
+    },
+    "extension": {
+      "status": "Lyrics Extension Status",
+      "showLyric": {
+        "text": "Show Tray Lyrics",
+        "desc": "Requires lyrics extension service."
+      },
+      "showTray": "Show Tray Icon"
+    },
+    "osdLyric": {
+      "showOsdLyric": "Show Desktop Lyrics",
+      "alwaysOnTop": "Always on Top",
+      "type": {
+        "text": "Desktop Lyrics Mode",
+        "small": "Mini Mode",
+        "normal": "Normal Mode"
+      },
+      "mode": {
+        "text": "Lyrics Display Mode",
+        "desc": "Applies only to Mini Mode.",
+        "oneLine": "Single Line",
+        "twoLines": "Dual Lines"
+      },
+      "isLock": "Lock Desktop Lyrics",
+      "isWordByWord": "Enable Word-by-Word Lyrics (if available)",
+      "translationMode": {
+        "text": "Show Lyrics Translation/Transliteration",
+        "none": "None",
+        "tlyric": "Translation",
+        "romalrc": "Transliteration"
+      },
+      "font": "Font Settings",
+      "fontSize": "Font Size (px)",
+      "textAlign": {
+        "text": "Text Alignment",
+        "start": "Left",
+        "center": "Center",
+        "end": "Right"
+      },
+      "useMask": {
+        "text": "Enable lyrics mask",
+        "desc": "Enable a transparent gradient effect on the top and bottom edges of the lyrics page"
+      },
+      "staticTime": {
+        "text": "Mouse Hover Timeout",
+        "desc": "After locking, lyrics fade after this duration (ms),",
+        "desc2": "set to 0 to disable this feature, not effective on Linux"
+      },
+      "showButtonWhenLock": {
+        "text": "Show Unlock Button When Locked",
+        "desc": "Enabling this will show the unlock button when the desktop lyrics window is locked",
+        "desc2": "and enable the mouse hover to reduce window transparency feature"
+      },
+      "lyricZoom": "Zoom The Playing Lyric",
+      "lyricBold": "Bold Text"
+    },
+    "lyric": {
+      "fontFamily": "Lyric Font Family",
+      "defaultFont": "System Default",
+      "backgroundType": "Background Type",
+      "backgroundSource": "Background Source",
+      "backgroundBlur": "Background Blur",
+      "backgroundOpacity": "Background Opacity",
+      "browse": "Browse",
+      "reset": "Reset",
+      "bgType": {
+        "default": "Default (Album Cover)",
+        "image": "Custom Image",
+        "video": "Custom Video",
+        "folder": "Folder Random",
+        "api": "API Random"
+      },
+      "placeholder": {
+        "image": "Select image file (png/jpg/webp)",
+        "video": "Select video file (mp4/webm)",
+        "folder": "Select folder containing images/videos",
+        "api": "Enter API URL that returns an image"
+      },
+      "apiRefreshMode": "Background Refresh Mode",
+      "apiRefreshInterval": "Refresh Interval",
+      "refreshMode": {
+        "song": "On Song Change",
+        "time": "Timed Refresh"
+      },
+      "minute": "Minute",
+      "minutes": "Minutes"
+    },
+    "unblock": {
+      "enable": "Enable UnblockMusic",
+      "source": {
+        "text": "Alternative Audio Source",
+        "desc1": "Specific codes for audio sources.",
+        "desc2": "Separate multiple sources with commas (,).",
+        "desc3": "Leave blank to use UNM's default values.",
+        "linkText": "Click here to check the UNM documentation."
+      },
+      "enableFlac": {
+        "text": "Enable FLAC",
+        "desc": "Clear song cache after enabling for changes to take effect"
+      },
+      "sourceSearchMode": {
+        "text": "Audio Source Search Mode",
+        "orderFirst": "Order Priority",
+        "speedFirst": "Speed Priority"
+      },
+      "qqCookie": {
+        "text": "QQ Engine Cookie",
+        "desc1": "For setup instructions, refer here",
+        "desc2": "Leave blank to skip configuration"
+      },
+      "jooxCookie": {
+        "text": "JOOX Engine Cookie"
+      },
+      "miguCookie": {
+        "text": "Migu Engine Cookie"
+      }
+    },
+    "autoCacheTrack": {
+      "enable": "Enable Automatic Song Caching",
+      "path": "Cache Folder Path",
+      "sizeLimit": "Song Cache Limit",
+      "noLimit": "No Limit",
+      "sizeCached": "Cached {song} songs",
+      "clearCache": "Clear Cache"
+    },
+    "shortcut": {
+      "enableGlobalShortcut": "Enable Global Shortcuts",
+      "function": "Function",
+      "shortcut": "Shortcut",
+      "globalShortcut": "Global Shortcuts",
+      "resetShortcut": "Reset to Default",
+      "play": "Play / Pause",
+      "next": "Next",
+      "previous": "Previous",
+      "increaseVolume": "Increase Volume",
+      "decreaseVolume": "Decrease Volume",
+      "like": "Like",
+      "minimize": "Show/Hide Player"
+    },
+    "misc": {
+      "enableAmuseServer": "Enable 6K Amuse Youtube Music Source Compatibility Server",
+      "enableDiscordRichPresence": "Enable Discord Rich Presence",
+      "FmStatusConnected": "Connected to Last.fm ({username})",
+      "connectToFM": "Connect to Last.fm",
+      "disconnectToFM": "Disconnect",
+      "authToFM": "Authorize Connection",
+      "proxy": {
+        "text": "Proxy Protocol Settings",
+        "disable": "Disable Proxy",
+        "http": "HTTP Proxy",
+        "https": "HTTPS Proxy",
+        "address": "Server Address",
+        "port": "Port"
+      },
+      "realIp": {
+        "text": "Real IP",
+        "ip": "IP Address"
+      }
+    },
+    "stream": {
+      "enable": "Enable Stream Music",
+      "service": "Servers",
+      "login": "Logged in",
+      "logout": "Logged out",
+      "offline": "Offline"
+    },
+    "library": {
+      "enable": "Enable Library"
+    },
+    "update": {
+      "autoUpdate": "Enable Automatic Update Checks",
+      "currentVersion": "Current Version",
+      "updateCheck": "Check For Update",
+      "downloadUpdate": "Download Update",
+      "cancelDownload": "Cancel Download",
+      "goToDownload": "Go To Download",
+      "updateChecking": "Checking For Update",
+      "latestVersion": "Latest Version",
+      "changelog": "Change Log",
+      "updateAvailable": "UpdateAvailable",
+      "updating": "Updating"
+    },
+    "playerTheme": {
+      "title": "Player Theme",
+      "Classic": "Classic Mode",
+      "Creative": "Creative Mode",
+      "Customize": "Customize Mode"
+    },
+    "amuseServer": {
+      "running": "Server is running normally",
+      "error": "Server failed to start: {0}",
+      "notRunning": "Server is not running"
+    },
+    "sourcePriority": {
+      "search": {
+        "text": "Search Source Priority",
+        "desc": "Drag to reorder search sources. The first one will be the default."
+      }
+    }
+  },
+  "toast": {
+    "createLocalPlaylistSuccess": "Playlist created",
+    "createLocalPlaylistFailed": "Failed to create playlist",
+    "savedToPlaylist": "Added to playlist",
+    "saveFailed": "Failed To Save",
+    "tracksAlreadyInPlaylist": "Tracks already in playlist",
+    "needToLogin": "Requires {serviceName} account login",
+    "getColorFailed": "Failed to fetch color",
+    "scanning": "Scanning local music...",
+    "addFailed": "Failed: Album unavailable or restricted",
+    "removedFromPlaylist": "Removed from playlist",
+    "deleteSuccess": "Deleted successfully",
+    "deleteFailed": "Deletion failed",
+    "copySuccess": "Copied successfully"
+  },
+  "next": {
+    "nowPlaying": "Now Playing",
+    "insertPlaying": "Play Next",
+    "nextPlaying": "Up Next",
+    "historyPlaying": "History"
+  }
+}

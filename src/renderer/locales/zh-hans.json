@@ -1,0 +1,622 @@
+{
+  "nav": {
+    "home": "首页",
+    "search": "搜索",
+    "explore": "探索",
+    "library": "音乐库",
+    "stream": "流媒体",
+    "localMusic": "本地音乐",
+    "settings": "设置",
+    "github": "GitHub仓库",
+    "log": "打开 log 文件夹",
+    "error": "未知错误",
+    "track": "单曲",
+    "artist": "歌手",
+    "album": "专辑",
+    "playlist": "歌单",
+    "user": "用户",
+    "mv": "MV",
+    "chart": "排行榜",
+    "newTrack": "新歌速递",
+    "newAlbum": "新专速递"
+  },
+  "home": {
+    "recommendPlaylist": "推荐歌单",
+    "recommendArtist": "推荐艺人",
+    "newAlbum": "新专速递",
+    "charts": "排行榜",
+    "seeMore": "查看全部"
+  },
+  "library": {
+    "userProfileMenu": {
+      "logout": "登出",
+      "settings": "设置"
+    },
+    "playlist": {
+      "playlist": "歌单",
+      "addToPlaylist": "添加至歌单",
+      "title": "歌单标题",
+      "setPrivate": "设置为隐私歌单",
+      "newPlaylist": "新建歌单",
+      "updatedAt": "最后更新于",
+      "search": "搜索",
+      "modifyTitle": "修改歌单标题",
+      "modifyDesc": "修改歌单描述"
+    },
+    "likedSongs": "我喜欢的音乐",
+    "albums": "专辑",
+    "artists": "艺人",
+    "mvs": "MV",
+    "cloudDisk": "云盘",
+    "playHistory": {
+      "title": "听歌排行",
+      "all": "所有时间",
+      "week": "最近一周"
+    }
+  },
+  "explore": {
+    "allPlaylist": "歌单",
+    "recommendPlaylist": "推荐歌单",
+    "recommendArtist": "歌手",
+    "newAlbum": "新专速递",
+    "charts": "排行榜",
+    "seeMore": "查看全部"
+  },
+  "streamMusic": {
+    "track": "全部歌曲",
+    "song": "流媒体音乐",
+    "playlist": {
+      "text": "流媒体歌单",
+      "addToPlaylist": "添加至流媒体歌单",
+      "newPlaylist": "新建流媒体歌单"
+    },
+    "album": "专辑",
+    "artist": "艺人"
+  },
+  "localMusic": {
+    "latedAdd": "最近添加",
+    "songs": "本地歌曲",
+    "playlist": {
+      "text": "离线歌单",
+      "addToPlaylist": "添加至离线歌单",
+      "newPlaylist": "新建离线歌单"
+    },
+    "albums": "专辑",
+    "artists": "艺人",
+    "albumArtist": "专辑艺人",
+    "dirName": "文件夹名",
+    "placeholder": "搜索本地歌曲",
+    "scrollToTop": "回到顶部",
+    "localMusicFolder": {
+      "text": "本地音乐文件夹路径",
+      "desc": "支持多目录，Linux如需多目录，请使用手动输入的方式",
+      "title": "手动输入本地音乐目录",
+      "placeholder": "请输入本地音乐目录（支持多目录，每行一个）"
+    },
+    "enableLocalMusic": "启用本地音乐",
+    "clearLocalMusic": {
+      "text": "清空本地歌曲信息",
+      "desc": "此操作仅会清除此程序内的本地歌曲匹配信息，不会删除本地歌曲文件"
+    },
+    "replayGain": {
+      "text": "音量平衡",
+      "desc": "此功能只会读取本地歌曲元数据里的音量平衡信息，无法扫描计算得到结果"
+    },
+    "embeddedInformation": "优先使用歌曲内嵌信息",
+    "trackInfoOrder": {
+      "text": "封面获取顺序",
+      "desc": "设置本地音乐封面的获取顺序，拖拽调整优先级",
+      "path": "从歌曲目录下获取",
+      "online": "从线上获取",
+      "embedded": "从歌曲内嵌信息中获取"
+    },
+    "embedCoverArt": {
+      "text": "嵌入封面图片到本地音乐文件",
+      "desc": "写入封面时会覆盖原有的封面图片",
+      "none": "不嵌入",
+      "embedded": "内嵌",
+      "path": "歌曲路径下",
+      "both": "两者都嵌入"
+    },
+    "embedStyle": {
+      "text": "封面图片存在时的写入方式",
+      "ignore": "跳过",
+      "rewrite": "覆盖"
+    },
+    "positionTrack": "定位歌曲"
+  },
+  "artist": {
+    "artist": "艺人",
+    "withAlbums": "张专辑",
+    "videos": "个MV",
+    "follow": "关注",
+    "following": "已关注",
+    "latestRelease": "最新发布",
+    "latestMV": "最新MV",
+    "popularSongs": "热门歌曲",
+    "showMore": "查看更多",
+    "showLess": "收起",
+    "albums": "专辑",
+    "EPsSingles": "EP和单曲",
+    "similarArtists": "相似艺人",
+    "artistDesc": "艺术家介绍"
+  },
+  "album": {
+    "released": "发行于",
+    "albumDesc": "专辑介绍"
+  },
+  "playlist": {
+    "search": "搜索歌单音乐",
+    "newPlaylist": "新建{name}歌单",
+    "addToPlaylist": "添加到{name}歌单",
+    "deletePlaylist": "确定要删除 {name} 歌单 {pname} 吗？",
+    "rmTrackFromPlaylist": "确定要从 {name} 歌单中删除歌曲 '{tname}' 吗？"
+  },
+  "contextMenu": {
+    "defaultSort": "默认排序",
+    "name": "按名称排序",
+    "createTime": "按创建时间排序",
+    "playCount": "按播放次数排序",
+    "ascOrder": "升序排序",
+    "descOrder": "降序排列",
+    "selectAll": "全选",
+    "batchOperation": "批量操作",
+    "refreshData": "重新获取数据",
+    "reScan": "重新扫描歌曲",
+    "showComment": "查看评论",
+    "showLyric": "显示歌词",
+    "setConvolver": "音效设置",
+    "setLyricBG": "歌词背景设置",
+    "playBackSpeed": "倍速播放",
+    "pitch": "音调调整",
+    "lyricOffset": "歌词时间调整",
+    "play": "播放",
+    "addToQueue": "添加至队列",
+    "addedToQueue": "已添加到待播队列",
+    "accurateMatch": "精确匹配",
+    "addToLocalPlaylist": "添加至本地歌单",
+    "removeTrackFromPlaylist": "从歌单里删除",
+    "editPlaylistInfo": "编辑歌单",
+    "showInFolder": "在文件管理器中打开",
+    "deletePlaylist": "删除歌单",
+    "removeFromPlaylist": "从歌单中删除",
+    "removeFromQueue": "从队列删除",
+    "finish": "完成",
+    "allPlaylists": "全部歌单",
+    "minePlaylists": "创建的歌单",
+    "likedPlaylists": "收藏的歌单",
+    "openOnBrowser": "在浏览器中打开",
+    "copyURL": "复制链接",
+    "copyId": "复制ID",
+    "copySourceContext": "复制歌曲上下文",
+    "playMV": "播放MV",
+    "setFont": "设置字体"
+  },
+  "login": {
+    "login": "登录",
+    "phone": "手机号",
+    "email": "邮箱",
+    "password": "密码",
+    "loginText": "登录{serviceName}账号",
+    "countryCode": "国际区号",
+    "usernameLogin": "用户名登录",
+    "loginWithEmail": "邮箱登录",
+    "loginWithPhone": "手机号登录",
+    "loginWithQr": "二维码登录",
+    "loginWithCookie": "Cookie登录",
+    "cookiePlaceholder": "粘贴你的Cookie字符串",
+    "errorNoCookie": "请输入Cookie",
+    "noticeElectron": "你的密码会在本地进行MD5加密后再传输到网易云API。VutronMusic 不会传输你的账号数据到任何非网易云音乐官方的服务器。",
+    "removeDir": "删除",
+    "emptyScanDir": "请设置本地音乐扫描目录",
+    "chooseDir": "选择目录",
+    "setScanDir": "设置",
+    "errorNoScanDir": "请设置扫描目录"
+  },
+  "player": {
+    "play": "播放",
+    "pause": "暂停",
+    "previous": "上一首",
+    "moveToFMTrash": "不喜欢",
+    "next": "下一首",
+    "volume": "音量",
+    "mute": "静音",
+    "shuffle": "随机",
+    "singleLoop": "单曲循环",
+    "sequence": "顺序播放",
+    "playlist": "歌单",
+    "download": "下载",
+    "addToPlaylist": "添加到歌单",
+    "noAllowCauseLocal": "本地歌曲，无法操作",
+    "osdLyrics": "显示桌面歌词",
+    "nextUp": "播放列表",
+    "repeat": "循环播放",
+    "repeatTrack": "单曲循环",
+    "resetPlayer": "重置播放器状态",
+    "like": "喜欢",
+    "getFMTimeout": "获取私人FM超时",
+    "getFMOverCount": "获取私人FM时重试次数过多，请手动切换下一首",
+    "converlution": {
+      "title": "环境混响音效",
+      "mainGain": "原始音频增益",
+      "sendGain": "环境音效增益",
+      "bright_hall": "大厅",
+      "cardiod_35_10_spread": "心形扩散",
+      "cinema_diningroom": "电影院",
+      "dining_living_true_stereo": "餐厅",
+      "feedback_spring": "反馈弹簧",
+      "living_bedroom_leveled": "卫生间",
+      "matrix_1": "矩阵混响",
+      "matrix_2": "矩阵混响2",
+      "s2_r4_bd": "教堂",
+      "s3_r1_bd": "立体声",
+      "spreader50_65ms": "室内",
+      "telephone": "电话",
+      "tim_omni_35_10_magnetic": "磁性立体声",
+      "main_gain": "原始音频增益",
+      "send_gain": "环境音效增益"
+    },
+    "frequad": {
+      "title": "均衡器设置",
+      "reset": "重置",
+      "classical": "古典",
+      "dance": "舞曲",
+      "electronic": "电子乐",
+      "pop": "流行",
+      "rock": "摇滚",
+      "slow": "慢歌",
+      "soft": "柔和",
+      "subwoofer": "重低音",
+      "vocal": "人声"
+    },
+    "fade": {
+      "fadeDuration": "音频淡入淡出时长（秒）",
+      "fadeDurationDesc": "切歌、播放、暂停时音量渐变的时长"
+    },
+    "volumeNormalization": {
+      "title": "音量平衡",
+      "desc": "自动平衡不同歌曲之间的响度差异，使所有歌曲在同一音量下听感一致"
+    }
+  },
+  "common": {
+    "songs": "首歌",
+    "play": "播放"
+  },
+  "settings": {
+    "nav": {
+      "general": "通用",
+      "appearance": "外观",
+      "tray": "系统托盘",
+      "extension": "歌词插件",
+      "platformSetting": "平台设置",
+      "plugin": "插件设置",
+      "musicSource": "音乐来源",
+      "lyricSetting": "歌词设置",
+      "lyric": "主窗口歌词",
+      "osdLyric": "桌面歌词",
+      "trayLyric": "状态栏歌词",
+      "localMusic": "本地歌曲",
+      "music": "音乐设置",
+      "player": "播放器设置",
+      "netease": "线上音乐",
+      "stream": "流媒体音乐",
+      "local": "本地音乐",
+      "library": "媒体库",
+      "unblock": "音源设置",
+      "shortcut": "快捷键设置",
+      "misc": "杂项设置",
+      "update": "软件更新"
+    },
+    "general": {
+      "language": {
+        "text": "语言",
+        "zhHans": "简体中文",
+        "zhHant": "繁體中文",
+        "en": "English"
+      },
+      "showBanner": "在首页显示Banner",
+      "showTimeOrID": {
+        "text": "歌曲列表信息显示选项",
+        "time": "歌曲时长",
+        "ID": "歌曲ID"
+      },
+      "useCustomTitlebar": "启用自定义标题栏 (重启后生效)",
+      "outputDevice": {
+        "text": "音频输出设备",
+        "deviceID": "default"
+      },
+      "closeAppOption": {
+        "text": "软件退出选项",
+        "minimizeToTray": "最小化至托盘",
+        "exit": "直接退出",
+        "ask": "询问"
+      },
+      "musicQuality": {
+        "text": "音质选择",
+        "low": "普通",
+        "medium": "较高",
+        "high": "极高",
+        "lossless": "无损"
+      },
+      "lyricBackground": {
+        "text": "显示歌词背景",
+        "close": "关闭",
+        "true": "打开",
+        "blur": "模糊封面",
+        "dynamic": "动态封面",
+        "customize": "自定义背景",
+        "colorMode": "背景页颜色模式",
+        "extractdColor": {
+          "text": "使用封面渐变色作为背景",
+          "desc": "当背景透明度降低时显示的背景颜色"
+        }
+      },
+      "trayColor": {
+        "text": "托盘图标颜色",
+        "color": "彩色",
+        "white": "白色",
+        "black": "黑色",
+        "auto": "自动 (跟随系统主题)"
+      },
+      "logout": "登出",
+      "showSongChorus": "在播放进度条显示副歌时间",
+      "clickToLyric": "点击播放栏空白处进入歌词页",
+      "jumpToLyricBegin": "调整进度时吸附到歌词开始位置",
+      "perventSuspend": "播放时防止系统休眠",
+      "forceFactor": "忽略系统缩放（强制 100%，重启后生效）"
+    },
+    "plugin": {
+      "title": "插件管理"
+    },
+    "theme": {
+      "auto": "跟随系统",
+      "light": "浅色",
+      "dark": "深色",
+      "accent": "强调色",
+      "blue": "蓝色",
+      "purple": "紫色",
+      "orange": "橙色",
+      "cyan": "青色",
+      "Customize": "自定义"
+    },
+    "tray": {
+      "showLyric": "显示状态栏歌词",
+      "showControl": "显示控制按钮",
+      "showIcon": "显示托盘图标",
+      "wordByWord": "逐字高亮",
+      "playedColor": "深色模式高亮颜色",
+      "playedColorLight": "浅色模式高亮颜色",
+      "lyricScrollFrameRate": {
+        "text": "歌词滚动帧率",
+        "desc": "该数值并非越大越好，太高会导致歌词滚动速度过快而无法流畅显示"
+      },
+      "lyricFrameWidth": "歌词滚动宽度(px)"
+    },
+    "extension": {
+      "status": "歌词插件服务检测状态",
+      "showLyric": {
+        "text": "显示状态栏歌词",
+        "desc": "该功能需要安装并启用歌词插件服务"
+      },
+      "showTray": "显示托盘图标"
+    },
+    "osdLyric": {
+      "showOsdLyric": "显示桌面歌词",
+      "alwaysOnTop": "桌面歌词窗口置顶",
+      "type": {
+        "text": "桌面歌词窗口模式",
+        "small": "mini模式",
+        "normal": "普通模式"
+      },
+      "mode": {
+        "text": "歌词显示模式",
+        "desc": "此选项仅在桌面歌词窗口为mini模式生效",
+        "oneLine": "单行",
+        "twoLines": "双行"
+      },
+      "isLock": "桌面歌词锁定",
+      "isWordByWord": "启用逐字歌词（如果可用）",
+      "translationMode": {
+        "text": "显示歌词翻译/音译",
+        "none": "从不",
+        "tlyric": "翻译",
+        "romalrc": "音译"
+      },
+      "font": "字体设置",
+      "fontSize": "字体大小（单位：{dw}）",
+      "lineGap": "歌词行间隔（单位：{dw}）",
+      "position": {
+        "text": "歌词垂直位置",
+        "top": "靠上",
+        "center": "居中",
+        "bottom": "靠下"
+      },
+      "textAlign": {
+        "text": "字体对齐方式",
+        "start": "居左",
+        "center": "居中",
+        "end": "居右"
+      },
+      "useMask": {
+        "text": "启用歌词遮罩",
+        "desc": "歌词页上下边缘启用透明渐变的效果"
+      },
+      "staticTime": {
+        "text": "鼠标停留时长",
+        "desc": "锁定后，鼠标停留该时长后（毫秒）降低窗体透明度，",
+        "desc2": "设置为0则表示不启用该功能，Linux系统下无效"
+      },
+      "showButtonWhenLock": {
+        "text": "锁定后显示解锁按钮",
+        "desc": "启用后，锁定桌面歌词窗口时仍然显示解锁按钮",
+        "desc2": "并启用鼠标停留降低窗体透明度功能"
+      },
+      "lyricZoom": "放缩当前播放的歌词",
+      "lyricBold": "字体加粗"
+    },
+    "lyric": {
+      "fontFamily": "歌词字体",
+      "defaultFont": "系统默认",
+      "backgroundType": "背景类型",
+      "backgroundSource": "背景来源",
+      "backgroundBlur": "背景模糊",
+      "backgroundOpacity": "背景透明度",
+      "browse": "浏览",
+      "reset": "重置",
+      "bgType": {
+        "default": "默认（封面）",
+        "image": "自定义图片",
+        "video": "自定义视频",
+        "folder": "文件夹随机",
+        "api": "API随机"
+      },
+      "placeholder": {
+        "image": "选择图片文件 (png/jpg/webp)",
+        "video": "选择视频文件 (mp4/webm)",
+        "folder": "选择包含图片/视频的文件夹",
+        "api": "输入返回图片的API地址"
+      },
+      "apiRefreshMode": "背景切换时机",
+      "apiRefreshInterval": "切换间隔",
+      "refreshMode": {
+        "song": "切换歌曲时",
+        "time": "定时切换"
+      },
+      "minute": "分钟",
+      "minutes": "分钟"
+    },
+    "unblock": {
+      "enable": "启用音源替换",
+      "source": {
+        "text": "备选音源",
+        "desc1": "音源的具体代号,",
+        "desc2": "多个音源请用 , 逗号分隔.",
+        "desc3": "留空则使用 UNM 内置的默认值。",
+        "linkText": "可以点此到 UNM 的说明页面查询。"
+      },
+      "enableFlac": {
+        "text": "启用FLAC",
+        "desc": "启用后需要清除歌曲缓存才能生效"
+      },
+      "sourceSearchMode": {
+        "text": "音源搜索模式",
+        "orderFirst": "顺序优先",
+        "speedFirst": "速度优先"
+      },
+      "qqCookie": {
+        "text": "QQ 引擎的 Cookie",
+        "desc1": "设置说明请参见此处",
+        "desc2": "留空则不进行相关设置"
+      },
+      "jooxCookie": {
+        "text": "JOOX 引擎的 Cookie"
+      },
+      "miguCookie": {
+        "text": "咪咕引擎的 Cookie"
+      }
+    },
+    "autoCacheTrack": {
+      "enable": "启用自动缓存歌曲",
+      "path": "缓存路径",
+      "sizeLimit": "歌曲缓存上限",
+      "noLimit": "无限制",
+      "sizeCached": "已缓存歌曲 { song } 首",
+      "clearCache": "清除歌曲缓存"
+    },
+    "shortcut": {
+      "enableGlobalShortcut": "启用全局快捷键",
+      "function": "功能",
+      "shortcut": "快捷键",
+      "globalShortcut": "全局快捷键",
+      "resetShortcut": "恢复默认快捷键",
+      "play": "播放/暂停",
+      "next": "下一首",
+      "previous": "上一首",
+      "increaseVolume": "增加音量",
+      "decreaseVolume": "降低音量",
+      "like": "喜欢",
+      "minimize": "显示/隐藏播放器"
+    },
+    "misc": {
+      "enableAmuseServer": "启用 6K Amuse Youtube Music 信息源兼容服务器",
+      "enableDiscordRichPresence": "启用 Discord Rich Presence",
+      "FmStatusConnected": "已连接到 Lst.fm ({username})",
+      "connectToFM": "连接 Last.fm ",
+      "disconnectToFM": "断开连接",
+      "authToFM": "授权连接",
+      "proxy": {
+        "text": "代理协议设置",
+        "disable": "关闭代理",
+        "http": "HTTP代理",
+        "https": "HTTPS代理",
+        "address": "服务器地址",
+        "port": "端口"
+      },
+      "realIp": {
+        "text": "Real IP",
+        "ip": "IP地址"
+      }
+    },
+    "stream": {
+      "enable": "启用流媒体音乐",
+      "service": "流媒体服务",
+      "login": "已登录",
+      "logout": "未登录",
+      "offline": "服务器离线"
+    },
+    "library": {
+      "enable": "启用媒体库"
+    },
+    "update": {
+      "autoUpdate": "自动检查更新",
+      "currentVersion": "当前版本",
+      "updateCheck": "检查更新",
+      "downloadUpdate": "下载更新",
+      "cancelDownload": "取消下载",
+      "goToDownload": "前往下载",
+      "updateChecking": "检查更新中",
+      "latestVersion": "最新版本",
+      "changelog": "版本变化",
+      "updateAvailable": "可更新",
+      "updating": "更新中"
+    },
+    "playerTheme": {
+      "title": "播放器样式",
+      "Classic": "经典模式",
+      "Creative": "创意模式",
+      "Customize": "自定义模式"
+    },
+    "amuseServer": {
+      "running": "服务正常运行中",
+      "error": "服务启动失败：{0}",
+      "notRunning": "服务未启动"
+    },
+    "sourcePriority": {
+      "search": {
+        "text": "搜索来源优先级",
+        "desc": "拖拽调整搜索框中的插件顺序，排在前面的作为默认搜索源"
+      }
+    }
+  },
+  "toast": {
+    "createLocalPlaylistSuccess": "成功创建歌单",
+    "createLocalPlaylistFailed": "创建歌单失败",
+    "savedToPlaylist": "已添加到歌单",
+    "saveFailed": "添加失败",
+    "tracksAlreadyInPlaylist": "歌曲已在歌单中",
+    "needToLogin": "此操作需要登录{serviceName}账号",
+    "getColorFailed": "获取颜色失败",
+    "scanning": "正在扫描本地音乐，请稍后",
+    "addFailed": "操作失败，专辑下架或版权锁定",
+    "removedFromPlaylist": "已从歌单中删除",
+    "deleteSuccess": "删除成功",
+    "deleteFailed": "删除失败",
+    "copySuccess": "复制成功"
+  },
+  "next": {
+    "nowPlaying": "正在播放",
+    "insertPlaying": "插队播放",
+    "nextPlaying": "即将播放",
+    "historyPlaying": "历史播放"
+  }
+}

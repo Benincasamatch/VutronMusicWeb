@@ -1,0 +1,14 @@
+# Lock files
+*-lock.json
+
+# IDEs
+.idea/
+# .vscode/
+
+# Project files
+.github/*
+!.github/workflows/
+buildAssets/icons/
+dist/
+release/
+.flatpak-builder
