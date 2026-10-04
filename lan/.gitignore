@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+data/
+music/
+.preview/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sock
+*.log

@@ -1,0 +1,20 @@
+{
+  "name": "@lan/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "build": "vite build --config vite.config.ts"
+  },
+  "dependencies": {
+    "@lan/shared": "0.1.0",
+    "pinia": "3.0.3",
+    "vue": "3.5.22"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.1",
+    "vite": "7.3.1"
+  }
+}

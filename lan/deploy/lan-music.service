@@ -1,0 +1,43 @@
+# Example only. NOT deployed or tested. Review lan/README.md before installation.
+# Requires prepared lan-music account, canonical paths, Node 24+, mpv and ALSA access.
+[Unit]
+Description=LAN shared music controller and private mpv player
+After=local-fs.target sound.target
+RequiresMountsFor=/opt/lan-music/lan /srv/lan-music/music /var/lib/lan-music
+
+[Service]
+Type=simple
+User=lan-music
+Group=lan-music
+# Distribution/device-specific: verify this group exists and grants the intended /dev/snd access.
+SupplementaryGroups=audio
+WorkingDirectory=/opt/lan-music/lan
+EnvironmentFile=/etc/lan-music/lan.env
+ExecStart=/usr/bin/node /opt/lan-music/lan/apps/server/dist/index.js
+StateDirectory=lan-music
+StateDirectoryMode=0700
+UMask=0077
+# A crash can leave a private lock. Never delete it or bootstrap automatically.
+Restart=no
+KillMode=mixed
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+# ALSA requires real device access; do not enable PrivateDevices for this example.
+PrivateDevices=false
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/lan-music/music
+ReadWritePaths=/var/lib/lan-music
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
