@@ -26,6 +26,11 @@ interface Observation {
   property: 'time-pos' | 'duration' | 'pause'
 }
 
+// Journal lines must stay diagnosable without echoing absolute library paths.
+// Everything from the first absolute path to the end of the line is dropped, so a
+// filename containing spaces cannot leak through either.
+const redact = (line: string): string => line.replace(/(^|[\s'"(=:])\/.*$/, '$1<path>').slice(0, 300)
+
 export class MpvDriver implements PlayerDriver {
   readonly simulation = false
   private sink: (event: DriverEvent) => void = () => undefined
@@ -36,6 +41,8 @@ export class MpvDriver implements PlayerDriver {
   private closing = false
   private ready = false
   private buffer = ''
+  private failure: string | undefined
+  private readonly stderrTail: string[] = []
   private requestCounter = 0
   private observeCounter = 0
   private readonly pending = new Map<number, PendingCommand>()
@@ -49,7 +56,11 @@ export class MpvDriver implements PlayerDriver {
   private expectedPause = false
   private suppressPause = false
 
-  constructor(private readonly executable: string, private readonly audioDevice: string) {}
+  constructor(
+    private readonly executable: string,
+    private readonly audioDevice: string,
+    private readonly report: (message: string) => void = (message) => { process.stderr.write(`${message}\n`) }
+  ) {}
 
   setEventSink(sink: (event: DriverEvent) => void): void {
     this.sink = sink
@@ -66,6 +77,7 @@ export class MpvDriver implements PlayerDriver {
     const socketPath = join(this.directory, 'ipc')
     if (Buffer.byteLength(socketPath) > 100) {
       await this.close()
+      this.report('mpv player unavailable: the private IPC socket path is too long for this temporary directory')
       throw new Error('Temporary directory is too long for a private Unix socket')
     }
     try {
@@ -93,9 +105,11 @@ export class MpvDriver implements PlayerDriver {
         '--replaygain=no',
         `--audio-device=${this.audioDevice}`,
         `--input-ipc-server=${socketPath}`
-      ], { shell: false, stdio: 'ignore', windowsHide: true })
-      this.child.on('error', () => this.connectionFailed())
-      this.child.on('exit', () => this.connectionFailed())
+      ], { shell: false, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true })
+      this.child.on('error', (error) => this.connectionFailed(`spawn failed: ${error.message}`))
+      this.child.on('exit', (code, signal) => this.connectionFailed(`mpv exited (code=${code ?? 'none'}, signal=${signal ?? 'none'})`))
+      this.child.stderr?.setEncoding('utf8')
+      this.child.stderr?.on('data', (chunk: string) => this.collectStderr(chunk))
       const deadline = Date.now() + 5000
       while (Date.now() < deadline && !this.broken) {
         const stat = await lstat(socketPath).catch(() => null)
@@ -110,15 +124,19 @@ export class MpvDriver implements PlayerDriver {
         }
         await delay(25)
       }
-      if (!this.socket || this.broken) throw new DriverError('PLAYER_UNAVAILABLE')
+      if (!this.socket || this.broken) {
+        if (!this.broken) this.report('mpv player unavailable: mpv did not open its private IPC socket within 5 seconds')
+        throw new DriverError('PLAYER_UNAVAILABLE')
+      }
       this.socket.setEncoding('utf8')
       this.socket.on('data', (chunk: Buffer | string) => this.consume(typeof chunk === 'string' ? chunk : chunk.toString('utf8')))
-      this.socket.on('error', () => this.connectionFailed())
-      this.socket.on('close', () => this.connectionFailed())
+      this.socket.on('error', () => this.connectionFailed('the private IPC socket reported an error'))
+      this.socket.on('close', () => this.connectionFailed('the private IPC socket closed unexpectedly'))
       await this.command(['get_property', 'mpv-version'])
       this.ready = true
-    } catch {
+    } catch (error) {
       await this.close()
+      if (!this.failure) this.report(`mpv player unavailable: ${error instanceof Error ? redact(error.message) : 'startup failed'}`)
       throw new DriverError('PLAYER_UNAVAILABLE')
     }
   }
@@ -149,10 +167,10 @@ export class MpvDriver implements PlayerDriver {
     }
     const requestId = ++this.requestCounter
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => this.connectionFailed(), 5000)
+      const timer = setTimeout(() => this.connectionFailed('an IPC command timed out after 5 seconds'), 5000)
       this.pending.set(requestId, { resolve, reject, timer })
       this.socket!.write(`${JSON.stringify({ command, request_id: requestId })}\n`, (error) => {
-        if (error) this.connectionFailed()
+        if (error) this.connectionFailed('an IPC write failed')
       })
     })
   }
@@ -160,7 +178,7 @@ export class MpvDriver implements PlayerDriver {
   private consume(chunk: string): void {
     this.buffer += chunk
     if (Buffer.byteLength(this.buffer) > 262144) {
-      this.connectionFailed()
+      this.connectionFailed('an IPC message exceeded the size limit')
       return
     }
     let newline = this.buffer.indexOf('\n')
@@ -172,7 +190,7 @@ export class MpvDriver implements PlayerDriver {
         if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error('Invalid IPC')
         this.message(message as Record<string, unknown>)
       } catch {
-        this.connectionFailed()
+        this.connectionFailed('an IPC message was not valid JSON')
         return
       }
       newline = this.buffer.indexOf('\n')
@@ -256,7 +274,7 @@ export class MpvDriver implements PlayerDriver {
         playlistId: null,
         resolve,
         reject,
-        timer: setTimeout(() => this.connectionFailed(), 15000)
+        timer: setTimeout(() => this.connectionFailed('mpv did not load the file within 15 seconds'), 15000)
       }
     })
     try {
@@ -314,9 +332,23 @@ export class MpvDriver implements PlayerDriver {
     await this.command(['set_property', 'mute', muted])
   }
 
-  private connectionFailed(): void {
+  private collectStderr(chunk: string): void {
+    for (const line of chunk.split('\n')) {
+      const text = line.trim()
+      if (!text) continue
+      this.stderrTail.push(redact(text))
+      if (this.stderrTail.length > 8) this.stderrTail.shift()
+    }
+  }
+
+  private connectionFailed(cause: string): void {
     if (this.broken) return
     this.broken = true
+    this.failure = cause
+    if (!this.closing) {
+      const last = this.stderrTail[this.stderrTail.length - 1]
+      this.report(`mpv player unavailable: ${cause}${last ? `; last mpv output: ${last}` : ''}`)
+    }
     const error = new DriverError('PLAYER_UNAVAILABLE')
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer)
@@ -336,7 +368,7 @@ export class MpvDriver implements PlayerDriver {
   async close(): Promise<void> {
     if (this.closing) return
     this.closing = true
-    this.connectionFailed()
+    this.connectionFailed('the driver was closed')
     const child = this.child
     if (child && child.exitCode === null && child.signalCode === null) {
       await new Promise<void>((resolve) => {

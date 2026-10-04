@@ -9,11 +9,13 @@ interface Internals {
   ready: boolean
   consume: (chunk: string) => void
   command: (command: unknown[]) => Promise<unknown>
+  collectStderr: (chunk: string) => void
   observations: Map<number, { playbackId: string, property: string }>
 }
 
 function ipcFixture(options: { acknowledge?: boolean, load?: boolean } = {}) {
-  const driver = new MpvDriver('/never-executed/mpv', 'auto')
+  const logs: string[] = []
+  const driver = new MpvDriver('/never-executed/mpv', 'auto', (message) => logs.push(message))
   const internals = driver as unknown as Internals
   const events: DriverEvent[] = []
   const commands: Array<{ command: unknown[], request_id: number }> = []
@@ -36,7 +38,7 @@ function ipcFixture(options: { acknowledge?: boolean, load?: boolean } = {}) {
     destroy: () => { destroyed = true }
   }
   driver.setEventSink((event) => events.push(event))
-  return { driver, internals, commands, events, destroyed: () => destroyed }
+  return { driver, internals, commands, events, logs, destroyed: () => destroyed }
 }
 
 afterEach(() => { vi.useRealTimers() })
@@ -55,6 +57,7 @@ describe('private mpv JSON IPC', () => {
       f.internals.consume(`${JSON.stringify({ request_id: firstId, error: 'success', data: 60 })}\n`)
       expect(await first).toBe(60)
       expect(await second).toBe(12)
+      expect(f.logs).toEqual([])
     } finally {
       await f.driver.close()
     }
@@ -69,6 +72,7 @@ describe('private mpv JSON IPC', () => {
     await rejected
     expect(f.destroyed()).toBe(true)
     expect(f.events).toContainEqual({ type: 'unavailable', playbackId: null })
+    expect(f.logs).toContainEqual(expect.stringContaining('an IPC command timed out after 5 seconds'))
     await f.driver.close()
   })
 
@@ -80,6 +84,7 @@ describe('private mpv JSON IPC', () => {
     await vi.advanceTimersByTimeAsync(15001)
     await rejected
     expect(f.destroyed()).toBe(true)
+    expect(f.logs).toContainEqual(expect.stringContaining('did not load the file within 15 seconds'))
     await f.driver.close()
   })
 
@@ -109,6 +114,28 @@ describe('private mpv JSON IPC', () => {
     f.internals.consume('x'.repeat(262145))
     expect(f.destroyed()).toBe(true)
     expect(f.events).toEqual([{ type: 'unavailable', playbackId: null }])
+    expect(f.logs).toContainEqual(expect.stringContaining('exceeded the size limit'))
+    await f.driver.close()
+  })
+
+  it('reports the failure cause with the last mpv output redacted', async () => {
+    const f = ipcFixture()
+    f.internals.collectStderr('Failed to open /srv/lan-music/music/private track.flac\n')
+    f.internals.consume('this is not JSON\n')
+    const joined = f.logs.join('\n')
+    expect(joined).toContain('an IPC message was not valid JSON')
+    expect(joined).toContain('last mpv output: Failed to open <path>')
+    expect(joined).not.toContain('/srv/lan-music')
+    expect(joined).not.toContain('private track.flac')
+    await f.driver.close()
+  })
+
+  it('keeps only a bounded tail of mpv output', async () => {
+    const f = ipcFixture()
+    const internals = f.internals as unknown as { stderrTail: string[] }
+    for (let index = 0; index < 20; index += 1) f.internals.collectStderr(`line ${index}\n`)
+    expect(internals.stderrTail).toHaveLength(8)
+    expect(internals.stderrTail[7]).toBe('line 19')
     await f.driver.close()
   })
 })
