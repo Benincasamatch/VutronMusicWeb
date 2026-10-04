@@ -17,6 +17,11 @@ export class FakeDriver implements PlayerDriver {
 
   setEventSink(sink: (event: DriverEvent) => void): void { this.sink = sink }
   async start(): Promise<void> { this.calls.push({ operation: 'start' }) }
+  restartFails = false
+  async restart(): Promise<void> {
+    this.calls.push({ operation: 'restart' })
+    if (this.restartFails) throw new DriverError()
+  }
   async load(_path: string, playbackId: string): Promise<void> {
     this.calls.push({ operation: 'load', value: playbackId })
     if (this.loadGate) await this.loadGate

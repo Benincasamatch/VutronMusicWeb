@@ -189,6 +189,11 @@ export function createRoomStore(dependencies: RoomDependencies) {
             invalidateSession(reasons[event.reason])
             return
           }
+          // The server rebuilt a dead player. Say so instead of silently resuming.
+          if (event.type === 'player.recovered') {
+            showNotice('info', '实体播放器已重新连接，正在恢复播放。')
+            return
+          }
           if (!applySnapshot(event.snapshot, sourceGeneration)) return
           if (firstSnapshot) {
             firstSnapshot = false

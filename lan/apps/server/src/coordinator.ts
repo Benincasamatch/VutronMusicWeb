@@ -179,9 +179,7 @@ export class Coordinator {
     this[kind] += 1
   }
 
-  private publish(): void {
-    this.increment('eventSeq')
-    const event: ServerEvent = { type: 'snapshot', snapshot: this.snapshot() }
+  private broadcast(event: ServerEvent): void {
     for (const subscriber of this.subscribers) {
       try {
         subscriber(event)
@@ -189,6 +187,17 @@ export class Coordinator {
         this.subscribers.delete(subscriber)
       }
     }
+  }
+
+  private publish(): void {
+    this.increment('eventSeq')
+    this.broadcast({ type: 'snapshot', snapshot: this.snapshot() })
+  }
+
+  // A rebuilt player is announced explicitly; clients must never see a silent resume.
+  private announceRecovery(): void {
+    this.increment('eventSeq')
+    this.broadcast({ type: 'player.recovered', serverInstanceId: this.serverInstanceId, eventSeq: this.eventSeq, reason: 'driver_rebuilt' })
   }
 
   revocation(reason: SessionRevokedReason): ServerEvent {
@@ -343,6 +352,10 @@ export class Coordinator {
           this.player.status = 'playing'
           return
         }
+        // A dead mpv is the one failure a retry can fix: rebuild it once, then resume.
+        if (this.player.status === 'error' && this.player.error?.code === 'PLAYER_UNAVAILABLE') {
+          await this.rebuildDriver()
+        }
         if (this.player.current) await this.load(this.player.current)
         else {
           const entry = this.queue.shift()
@@ -443,6 +456,20 @@ export class Coordinator {
     const lease = this.lease
     this.lease = undefined
     await lease?.close()
+  }
+
+  // One rebuild attempt per play command. A failed rebuild keeps the explicit error state.
+  private async rebuildDriver(): Promise<void> {
+    try {
+      await this.driver.restart()
+    } catch {
+      await this.markFailure('PLAYER_UNAVAILABLE')
+      return fail('PLAYER_UNAVAILABLE')
+    }
+    await this.driver.volume(this.player.volume)
+    await this.driver.mute(this.player.muted)
+    this.player = { ...this.player, status: 'idle', error: null }
+    this.announceRecovery()
   }
 
   private async markFailure(code: 'PLAYER_UNAVAILABLE' | 'PLAYBACK_FAILED'): Promise<void> {

@@ -329,4 +329,13 @@ describe('authoritative listening-room state', () => {
     expect(h.store.connected).toBe(false)
     expect(h.store.notice?.kind).toBe('error')
   })
+
+  it('surfaces an explicit notice when the server reports a rebuilt player', async () => {
+    const h = harness()
+    await h.connect()
+    h.sockets[0]!.handlers.message(JSON.stringify({ type: 'player.recovered', serverInstanceId: instanceA, eventSeq: 99, reason: 'driver_rebuilt' }))
+    expect(h.store.notice?.kind).toBe('info')
+    expect(h.store.notice?.text).toContain('实体播放器已重新连接')
+    expect(h.store.connected).toBe(true)
+  })
 })

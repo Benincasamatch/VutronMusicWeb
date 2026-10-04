@@ -310,8 +310,18 @@ export const SessionRevokedEventSchema = z.object({
 }).strict()
 export type SessionRevokedEvent = z.infer<typeof SessionRevokedEventSchema>
 
+// A rebuilt player is announced explicitly so clients never resume silently.
+export const PlayerRecoveredEventSchema = z.object({
+  type: z.literal('player.recovered'),
+  serverInstanceId: IdSchema,
+  eventSeq: RevisionSchema,
+  reason: z.literal('driver_rebuilt')
+}).strict()
+export type PlayerRecoveredEvent = z.infer<typeof PlayerRecoveredEventSchema>
+
 export const ServerEventSchema = z.discriminatedUnion('type', [
   SnapshotEventSchema,
-  SessionRevokedEventSchema
+  SessionRevokedEventSchema,
+  PlayerRecoveredEventSchema
 ])
 export type ServerEvent = z.infer<typeof ServerEventSchema>

@@ -138,4 +138,18 @@ describe('private mpv JSON IPC', () => {
     expect(internals.stderrTail[7]).toBe('line 19')
     await f.driver.close()
   })
+
+  it('restart clears the failure state and the output tail before starting again', async () => {
+    const f = ipcFixture()
+    const internals = f.internals as unknown as { broken: boolean, failure?: string, stderrTail: string[], reset: () => Promise<void> }
+    f.internals.collectStderr('boom\n')
+    f.internals.consume('this is not JSON\n')
+    expect(internals.broken).toBe(true)
+    expect(internals.stderrTail).toEqual(['boom'])
+    await internals.reset()
+    expect(internals.broken).toBe(false)
+    expect(internals.failure).toBeUndefined()
+    expect(internals.stderrTail).toEqual([])
+    await f.driver.close()
+  })
 })

@@ -198,6 +198,37 @@ describe('authoritative shared control', () => {
     expect(f.coordinator.snapshot().player.playbackId).not.toBe(failed.player.playbackId)
   })
 
+  it('rebuilds a dead player once on the next play and announces it explicitly', async () => {
+    const frames: Array<{ type: string }> = []
+    f.coordinator.subscribe((event) => frames.push(event))
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    f.driver.emit({ type: 'unavailable', playbackId: f.coordinator.snapshot().player.playbackId })
+    await f.coordinator.serial(() => undefined)
+    const dead = f.coordinator.snapshot()
+    expect(dead.player.status).toBe('error')
+    expect(dead.player.error?.code).toBe('PLAYER_UNAVAILABLE')
+    expect(frames.some((frame) => frame.type === 'player.recovered')).toBe(false)
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    expect(f.driver.calls.filter((call) => call.operation === 'restart')).toHaveLength(1)
+    expect(frames.some((frame) => frame.type === 'player.recovered')).toBe(true)
+    const resumed = f.coordinator.snapshot()
+    expect(resumed.player.status).toBe('playing')
+    expect(resumed.player.error).toBeNull()
+  })
+
+  it('keeps the failure explicit when a rebuild attempt fails', async () => {
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    f.driver.emit({ type: 'unavailable', playbackId: f.coordinator.snapshot().player.playbackId })
+    await f.coordinator.serial(() => undefined)
+    f.driver.restartFails = true
+    await expect(f.coordinator.control(f.admin.context, 'play', f.playback())).rejects.toMatchObject({ code: 'PLAYER_UNAVAILABLE' })
+    const failed = f.coordinator.snapshot()
+    expect(failed.player.status).toBe('error')
+    expect(failed.player.error?.code).toBe('PLAYER_UNAVAILABLE')
+  })
+
   it('enforces the per-account waiting allowance', async () => {
     for (let index = 0; index < 50; index += 1) await f.enqueue()
     await expect(f.enqueue()).rejects.toMatchObject({ code: 'QUEUE_FULL' })

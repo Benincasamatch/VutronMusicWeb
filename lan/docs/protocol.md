@@ -219,11 +219,19 @@ type ServerEvent =
       eventSeq: number
       reason: 'logout' | 'expired' | 'role_changed'
     }
+  | {
+      type: 'player.recovered'
+      serverInstanceId: string
+      eventSeq: number
+      reason: 'driver_rebuilt'
+    }
 ```
 
 Send a full current snapshot immediately after subscribing; take the snapshot/subscription under the same coordinator so a change cannot be lost between them. Broadcast full snapshots after state changes and at most once per second for position sampling. No client event/command messages are accepted; commands use CSRF-protected HTTP. Close clients sending application messages with 1008. Use server WebSocket ping/pong every 30 seconds and terminate unresponsive connections after 60 seconds. The maximum incoming client payload is 1024 bytes; at most three sockets may attach to a session. If buffered output exceeds 4 MiB, close with 1013 and require a fresh snapshot on reconnect rather than accumulating history indefinitely. The buffer budget accommodates one maximum-size 500-entry snapshot including JSON escaping.
 
 `session.revoked` is private to affected sessions, never broadcast to other accounts. It uses the global instance/sequence counter (unaffected clients may therefore see gaps). Send it if possible and then close with code 4001. Authorization cannot rely on delivery: expired/revoked sockets are removed immediately, and all HTTP requests check session validity independently.
+
+`player.recovered` is broadcast to every subscriber. After an unrecoverable player failure, a subsequent authorized `play` command may rebuild the driver once; when the rebuild succeeds the server announces this event and the next snapshot no longer carries the error. A failed rebuild keeps the explicit error state. Clients must show it as a notice and never resume silently. It uses the global instance/sequence counter like `session.revoked`.
 
 Client ordering rules:
 

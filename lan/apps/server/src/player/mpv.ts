@@ -365,11 +365,37 @@ export class MpvDriver implements PlayerDriver {
     if (this.ready && !this.closing) this.sink({ type: 'unavailable', playbackId: this.playbackId })
   }
 
-  async close(): Promise<void> {
-    if (this.closing) return
-    this.closing = true
-    this.connectionFailed('the driver was closed')
+  async restart(): Promise<void> {
+    if (this.closing) throw new DriverError('PLAYER_UNAVAILABLE')
+    await this.reset()
+    await this.start()
+  }
+
+  // Clear everything a previous attempt left behind without making close() terminal.
+  private async reset(): Promise<void> {
+    await this.discardChild()
+    this.broken = false
+    this.ready = false
+    this.failure = undefined
+    this.buffer = ''
+    this.pending.clear()
+    this.observations.clear()
+    this.playlist.clear()
+    this.loading = undefined
+    this.playbackId = null
+    this.startedPlaylistId = null
+    this.position = null
+    this.duration = null
+    this.expectedPause = false
+    this.suppressPause = false
+    this.stderrTail.length = 0
+  }
+
+  private async discardChild(): Promise<void> {
     const child = this.child
+    this.child = undefined
+    this.socket?.destroy()
+    this.socket = undefined
     if (child && child.exitCode === null && child.signalCode === null) {
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
@@ -383,6 +409,16 @@ export class MpvDriver implements PlayerDriver {
         child.kill('SIGTERM')
       })
     }
-    if (this.directory) await rm(this.directory, { recursive: true, force: true })
+    if (this.directory) {
+      await rm(this.directory, { recursive: true, force: true })
+      this.directory = undefined
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.closing) return
+    this.closing = true
+    this.connectionFailed('the driver was closed')
+    await this.discardChild()
   }
 }

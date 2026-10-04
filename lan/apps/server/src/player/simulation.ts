@@ -25,6 +25,11 @@ export class SimulationDriver implements PlayerDriver {
     this.timer.unref()
   }
 
+  async restart(): Promise<void> {
+    await this.close()
+    await this.start()
+  }
+
   async load(_path: string, playbackId: string): Promise<void> {
     this.playbackId = playbackId
     this.position = 0
