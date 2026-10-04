@@ -1,0 +1,6 @@
+{
+  "username": "preview-admin",
+  "password": "tjKrdZYnNn_ZoQJ6f_bLavEfCW04iyBn",
+  "url": "http://localhost:5174",
+  "purpose": "Local development simulation only. Never use this account for deployment."
+}
