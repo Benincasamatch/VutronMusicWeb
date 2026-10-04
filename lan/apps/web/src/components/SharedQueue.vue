@@ -12,7 +12,7 @@ const room = useRoomStore()
     <div class="section-heading">
       <div>
         <p class="eyebrow">大家的选择</p>
-        <h2 id="queue-title">接下来 <span class="queue-count">{{ room.snapshot?.queue.entries.length ?? 0 }}</span></h2>
+        <h2 id="queue-title">播放队列 <span class="queue-count">{{ room.snapshot?.queue.entries.length ?? 0 }}</span></h2>
       </div>
       <RoomIcon name="queue" />
     </div>

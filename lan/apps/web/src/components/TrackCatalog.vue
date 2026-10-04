@@ -1,34 +1,19 @@
 <script setup lang="ts">
 import RoomIcon from './RoomIcon.vue'
-import { ref, watch } from 'vue'
 import { LIMITS } from '@lan/shared'
 import { useRoomStore } from '../stores/room'
 import { formatTime } from '../utils/format'
 
 const room = useRoomStore()
-const query = ref(room.search)
-watch(() => room.search, (value) => { query.value = value })
-
-function search() {
-  void room.loadCatalog(query.value, 0)
-}
 </script>
 
 <template>
   <section id="catalog" class="catalog-section" aria-labelledby="catalog-title">
-    <div class="section-heading">
-      <div>
-        <p class="eyebrow">从这里开始</p>
-        <h2 id="catalog-title">点一首歌</h2>
-      </div>
-      <span class="section-caption">受控本地曲目</span>
+    <div class="section-heading catalog-heading">
+      <h2 id="catalog-title">{{ room.search ? '搜索结果' : '全部歌曲' }} <span class="queue-count">{{ room.totalTracks }}</span></h2>
+      <span class="section-caption">{{ room.search ? `“${room.search}”` : '本地音乐库' }}</span>
     </div>
-    <form class="search-form" role="search" @submit.prevent="search">
-      <label for="catalog-search" class="sr-only">搜索本地曲名</label>
-      <RoomIcon name="search" />
-      <input id="catalog-search" v-model="query" name="q" type="search" placeholder="搜索本地曲名" :maxlength="LIMITS.searchMaxLength" autocomplete="off" :disabled="!room.connected" />
-      <button class="button button-subtle" type="submit" :disabled="!room.connected || room.catalogLoading">搜索</button>
-    </form>
+    <div class="track-columns" aria-hidden="true"><span>#</span><span>歌曲 / 艺术家</span><span>专辑</span><span>时长</span><span>点播</span></div>
     <div class="catalog-results" :aria-busy="room.catalogLoading">
       <p v-if="room.catalogLoading" class="loading-note" role="status">正在读取曲目…</p>
       <div v-else-if="room.catalogError" class="empty-state">
@@ -44,10 +29,11 @@ function search() {
       <ul v-else class="track-list" aria-label="可点播的本地曲目">
         <li v-for="(track, index) in room.tracks" :key="track.id" class="track-row">
           <span class="track-index" aria-hidden="true">{{ String(room.catalogOffset + index + 1).padStart(2, '0') }}</span>
-          <div class="track-info">
-            <h3>{{ track.title }}</h3>
-            <p>{{ track.artist ?? '艺术家未知' }}<span v-if="track.album"> · {{ track.album }}</span></p>
+          <div class="catalog-track">
+            <span class="mini-cover" aria-hidden="true"><RoomIcon name="note" /></span>
+            <div class="track-info"><h3>{{ track.title }}</h3><p>{{ track.artist ?? '艺术家未知' }}</p></div>
           </div>
+          <span class="track-album">{{ track.album ?? '未知专辑' }}</span>
           <span class="track-duration" :aria-label="`时长 ${formatTime(track.durationSeconds)}`">{{ formatTime(track.durationSeconds) }}</span>
           <button class="button enqueue-button" type="button" :disabled="!room.canWrite || (room.snapshot?.queue.entries.length ?? 0) >= LIMITS.queueEntries" :aria-label="`点播 ${track.title}，加入共享待播队列`" @click="room.enqueue(track.id)">
             <RoomIcon name="plus" />

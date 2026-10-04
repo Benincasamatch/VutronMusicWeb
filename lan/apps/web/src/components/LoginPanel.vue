@@ -27,13 +27,14 @@ async function submit() {
 <template>
   <section class="login-layout" aria-labelledby="login-title">
     <div class="login-intro">
-      <p class="eyebrow">一间房 · 一份歌单</p>
-      <h1 id="login-title">把喜欢的歌，<br />放在一起听。</h1>
-      <p class="intro-copy">点一首歌，留一点时间。这里的每次播放，都来自同一台实体播放器。</p>
+      <div class="login-art" aria-hidden="true"><RoomIcon name="note" /></div>
+      <p class="eyebrow">VUTRONMUSIC / LAN</p>
+      <h1 id="login-title">音乐，就在身边。</h1>
+      <p class="intro-copy">浏览本地音乐、添加共享队列，遥控同一台播放器。登录你的局域网账号，从喜欢的歌开始。</p>
       <p class="quiet-note"><RoomIcon name="note" /> 浏览器只作遥控，不会发出声音。</p>
     </div>
     <form class="login-form surface" :aria-busy="room.authBusy" @submit.prevent="submit">
-      <p class="eyebrow">进入听音室</p>
+      <p class="eyebrow">登录音乐库</p>
       <h2>欢迎回来</h2>
       <p class="muted">使用管理员为你创建的账号。</p>
       <div class="field">
@@ -46,7 +47,7 @@ async function submit() {
       </div>
       <p v-if="formError" class="inline-error" role="alert">{{ formError }}</p>
       <button class="button button-primary login-submit" type="submit" :disabled="room.authBusy">
-        {{ room.authBusy ? '正在验证…' : '进入听音室' }}
+        {{ room.authBusy ? '正在验证…' : '登录音乐库' }}
         <RoomIcon name="arrow" />
       </button>
       <p class="form-footnote">没有公开注册，也没有默认账号。需要访问权限时，请联系听音室管理员。</p>

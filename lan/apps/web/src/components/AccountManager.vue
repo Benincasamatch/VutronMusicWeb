@@ -39,7 +39,7 @@ async function create() {
     <div class="section-heading">
       <div>
         <p class="eyebrow">管理员专属</p>
-        <h2 id="accounts-title">一起听的人</h2>
+        <h2 id="accounts-title">账号管理</h2>
       </div>
       <button class="button button-subtle" type="button" :disabled="!room.connected || room.usersLoading" @click="room.loadUsers()">刷新账号</button>
     </div>

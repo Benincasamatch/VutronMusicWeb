@@ -8,6 +8,7 @@ coverage/
 !.env.example
 data/
 music/
+.preview/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { chmod, lstat, mkdir, open, realpath, unlink } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
   LIMITS,
@@ -217,9 +217,21 @@ export interface OpenStore {
 export async function openStore(dataDir: string): Promise<OpenStore> {
   await mkdir(dataDir, { recursive: true, mode: 0o700 })
   const info = await lstat(dataDir)
-  if (info.isSymbolicLink() || !info.isDirectory() || await realpath(dataDir) !== resolve(dataDir)) {
+  if (info.isSymbolicLink() || !info.isDirectory()) {
     throw new Error('DATA_DIR must be a real directory without symlink ancestors')
   }
+  // Windows realpath expands casing and short names; inspect ancestors rather
+  // than mistaking those legitimate aliases for symlinks or junctions.
+  let ancestor = resolve(dataDir)
+  while (true) {
+    if ((await lstat(ancestor)).isSymbolicLink()) {
+      throw new Error('DATA_DIR must be a real directory without symlink ancestors')
+    }
+    const parent = dirname(ancestor)
+    if (parent === ancestor) break
+    ancestor = parent
+  }
+  dataDir = await realpath(dataDir)
   if (process.getuid && info.uid !== process.getuid()) throw new Error('DATA_DIR must belong to the service account')
   await chmod(dataDir, 0o700)
   const lockPath = resolve(dataDir, 'service.lock')

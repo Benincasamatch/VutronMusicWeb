@@ -1,9 +1,12 @@
 // Migration and persistence tests use isolated node:sqlite fixtures only.
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, mkdir, realpath, rm, symlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import type { Player, QueueEntry } from '@lan/shared'
-import { Store } from '../src/store.js'
+import { openStore, Store } from '../src/store.js'
 
 const idle: Player = {
   status: 'idle',
@@ -24,6 +27,38 @@ function entry(): QueueEntry {
     addedAt: new Date().toISOString()
   }
 }
+
+describe('private data directory paths', () => {
+  it.skipIf(process.platform !== 'win32')('accepts Windows path casing aliases without creating accounts', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-path-'))
+    try {
+      const canonical = await realpath(temporary)
+      const alias = canonical.replace(/^[A-Z]:/i, (drive) => drive.toLowerCase())
+      const opened = await openStore(join(alias, 'data'))
+      try {
+        expect(opened.store.users()).toEqual([])
+      } finally {
+        await opened.close()
+      }
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects linked ancestors, including Windows junctions', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-link-'))
+    try {
+      const canonical = await realpath(temporary)
+      const target = join(canonical, 'target')
+      const link = join(canonical, 'linked')
+      await mkdir(join(target, 'data'), { recursive: true })
+      await symlink(target, link, process.platform === 'win32' ? 'junction' : 'dir')
+      await expect(openStore(join(link, 'data'))).rejects.toThrow('without symlink ancestors')
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('versioned SQLite state', () => {
   it('migrates once, preserves waiting order and stores a checkpoint separately from the queue', () => {
