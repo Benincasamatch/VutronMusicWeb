@@ -150,6 +150,16 @@ describe('private mpv JSON IPC', () => {
     await f.driver.close()
   })
 
+  it('redacts the executable path out of a spawn failure', async () => {
+    const f = ipcFixture()
+    const internals = f.internals as unknown as { connectionFailed: (cause: string) => void }
+    internals.connectionFailed('spawn failed: spawn /opt/private/mpv ENOENT')
+    const joined = f.logs.join('\n')
+    expect(joined).toContain('spawn failed')
+    expect(joined).not.toContain('/opt/private')
+    await f.driver.close()
+  })
+
   it('keeps close terminal while reset stays retryable', async () => {
     const f = ipcFixture()
     const internals = f.internals as unknown as { closing: boolean, reset: () => Promise<void> }

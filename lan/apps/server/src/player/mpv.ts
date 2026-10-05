@@ -411,10 +411,13 @@ export class MpvDriver implements PlayerDriver {
   private connectionFailed(cause: string): void {
     if (this.broken) return
     this.broken = true
-    this.failure = cause
+    // Every cause goes through the same redaction. The fixed ones are unaffected, and a cause that
+    // embeds an external message - a spawn failure quotes the executable path - cannot leak it.
+    const safe = redact(cause)
+    this.failure = safe
     if (!this.closing) {
       const last = this.outputTail[this.outputTail.length - 1]
-      this.report(`mpv player unavailable: ${cause}${last ? `; last mpv output: ${last}` : ''}`)
+      this.report(`mpv player unavailable: ${safe}${last ? `; last mpv output: ${last}` : ''}`)
     }
     const error = new DriverError('PLAYER_UNAVAILABLE')
     for (const pending of this.pending.values()) {
