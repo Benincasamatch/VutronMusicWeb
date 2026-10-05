@@ -280,17 +280,6 @@ export class MpvDriver implements PlayerDriver {
         }
         return
       }
-      if (observation.property === 'audio-out-detected-device') {
-        const detected = typeof message.data === 'string' && message.data.trim() ? message.data : null
-        this.sink({
-          type: 'device',
-          playbackId: observation.playbackId,
-          expected: this.audioDevice,
-          detected,
-          mismatch: deviceMismatch(this.audioDevice, detected)
-        })
-        return
-      }
       const value = typeof message.data === 'number' && Number.isFinite(message.data) && message.data >= 0 &&
         message.data <= LIMITS.maxDurationSeconds ? message.data : null
       if (observation.property === 'time-pos') this.position = value
