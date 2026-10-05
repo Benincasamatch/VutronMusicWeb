@@ -4,7 +4,7 @@
 
 外部依赖来自 [npm 官方仓库](https://registry.npmjs.org/)。直接依赖版本元数据已查询；锁文件由 npm 实际生成，已核查外部包的下载来源和 integrity 字段。安装时没有运行生命周期脚本。
 
-类型检查及自动测试已通过，生产构建和漏洞审计仍待验证。完整执行结果和已知限制见 [验证记录](verification.md)。版本固定、来源正确或测试通过，都不代表不存在依赖漏洞。
+类型检查、自动测试和生产构建均已通过；运行时依赖审计已处置（`npm audit --omit=dev` 为 0 漏洞），开发工具链仍有少量公告待处理。完整执行结果和已知限制见 [验证记录](verification.md)。版本固定、来源正确或测试通过，都不代表不存在依赖漏洞。
 
 环境要求：Node.js **24+**，npm **11+**；本次使用 24.16.0 / 11.13.0。SQLite 使用 Node 自带的 `node:sqlite`，不需要安装原生 SQLite npm 插件。Linux mpv 是单独的系统依赖，没有任何 npm 脚本会安装 mpv、创建 OS 用户或配置声卡。
 
@@ -14,11 +14,11 @@
 
 | 包 | 版本 | 用途 |
 | --- | --- | --- |
-| fastify | 5.6.2 | HTTP 服务 |
+| fastify | 5.12.5 | HTTP 服务 |
 | @fastify/cookie | 11.0.2 | 会话 Cookie |
-| @fastify/static | 8.3.0 | 生产前端静态资源 |
+| @fastify/static | 10.1.5 | 生产前端静态资源 |
 | @fastify/websocket | 11.2.0 | 实时事件 |
-| ws | 8.18.3 | WebSocket 与测试替身类型 |
+| ws | 8.22.0 | WebSocket 与测试替身类型 |
 | zod | 3.25.76 | 共享协议和请求 / 响应校验 |
 | vue | 3.5.22 | 网页遥控界面 |
 | pinia | 3.0.3 | 前端状态 |
@@ -36,13 +36,15 @@
 
 根级 `overrides` 将工具链中的 Vite 统一为 7.3.1，避免 Vitest 的传递依赖和网页 workspace 分别安装不同 Vite，造成插件类型不兼容。没有关闭严格类型检查来掩盖该问题。现有代码使用 Zod 3 API，不应直接替换成 Zod 4。
 
+`@fastify/static` 从 8.3.0 升到 10.1.5：插件自身的兼容表写明 `>=8.x` 对应 Fastify `^5.x`，所以仍属 Fastify 5 线。v10 把 `setHeaders` 的回调参数从原始 ServerResponse 改成 Fastify Reply（`fn(reply, path, stat)`），`apps/server/src/app.ts` 已改用 `reply.header(...)`，并由 `static-auth.test.ts` 断言该响应头确实生效——这是跨大版本升级中唯一需要改代码的地方。
+
 ## 来源与锁文件
 
 - `.npmrc` 指定官方 registry、精确保存版本、严格检查运行时、禁用安装脚本和自动 audit / funding 请求。
 - 安装前检查用户、环境及 scoped npm 配置，不要因为官方源失败就自动切换镜像或 Git 来源。
-- 当前锁文件包含 301 个外部包记录，均为 HTTPS 官方 registry 来源且有 integrity；其中包含跨平台可选包，不等于当前平台实际安装包数。
+- 当前锁文件包含 289 个外部包记录，均为 HTTPS 官方 registry 来源且有 integrity；其中包含跨平台可选包，不等于当前平台实际安装包数。（升级 `@fastify/static` 后传递依赖减少，记录数由 301 降为 289。）
 - 修改依赖后应重新核查 lockfile，不手写锁文件、不复制原桌面项目的锁文件，不复制 Windows 的 node_modules 到 Linux。
-- 当前安装器报告 source-map beta 和 glob 11.1.0 的弃用提示，并提示 glob 安全问题。漏洞审计尚未完成，未运行自动修复或擅自改变固定版本。
+- 当前安装器报告 source-map beta 与 glob 的弃用/安全提示。运行时依赖审计已处置：`npm audit --omit=dev` 现为 0 漏洞——此前命中的 3 个 high 已按上表版本升级（fastify 5.12.5、@fastify/static 10.1.5、ws 8.22.0），锁文件随之重新生成并核查来源与 integrity。开发工具链（vite / vitest / esbuild）仍有少量公告，均不进入运行时产物，尚未处置；没有运行 `npm audit fix --force` 或静默改动固定版本。
 
 ## 可重复安装与检查
 
@@ -55,7 +57,7 @@ npm test
 npm run build
 ```
 
-本次前两类检查（类型和测试）已成功，构建尚未取得实际运行结果。`ignore-scripts` 禁用的是安装生命周期脚本，显式运行测试和构建仍会执行依赖代码。若将来某个工具需要额外安装脚本，先审核该特定步骤，不能直接启用所有 hooks。
+本次三类检查（类型、测试、构建）均已成功。`ignore-scripts` 禁用的是安装生命周期脚本，显式运行测试和构建仍会执行依赖代码。若将来某个工具需要额外安装脚本，先审核该特定步骤，不能直接启用所有 hooks。
 
 测试默认使用临时状态和模拟驱动，不启动 mpv，也不访问用户的真实账号或音乐目录。平台跳过项在验证记录中单列，不当成通过。
 

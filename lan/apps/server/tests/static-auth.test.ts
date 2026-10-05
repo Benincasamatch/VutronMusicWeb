@@ -50,6 +50,7 @@ describe('production static files never replace the authenticated API', () => {
     const shell = await service!.app.inject({ method: 'GET', url: '/', headers })
     expect(shell.statusCode).toBe(200)
     expect(shell.body).toContain('Test control UI')
+    expect(shell.headers['cache-control']).toBe('no-cache')
     expect(shell.headers['content-security-policy']).toContain("media-src 'none'")
     expect(shell.headers['content-security-policy']).toContain("connect-src 'self' wss://music.example.test")
     const asset = await service!.app.inject({ method: 'GET', url: '/assets/control.js', headers })

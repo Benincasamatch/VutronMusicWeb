@@ -280,7 +280,7 @@ export async function createApp(dependencies: AppDependencies) {
       dotfiles: 'deny',
       index: ['index.html'],
       redirect: false,
-      setHeaders: (response) => { response.setHeader('Cache-Control', 'no-cache') }
+      setHeaders: (reply) => { reply.header('Cache-Control', 'no-cache') }
     })
   }
 
