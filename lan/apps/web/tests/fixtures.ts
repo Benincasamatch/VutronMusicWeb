@@ -39,7 +39,8 @@ export function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
       durationSeconds: null,
       volume: 50,
       muted: false,
-      error: null
+      error: null,
+      warning: null
     },
     queue: { revision: 1, entries: [entry] },
     ...overrides
@@ -56,7 +57,8 @@ export function playing(overrides: Partial<Snapshot> = {}): Snapshot {
       durationSeconds: 180,
       volume: 50,
       muted: false,
-      error: null
+      error: null,
+      warning: null
     },
     queue: { revision: 1, entries: [] },
     ...overrides

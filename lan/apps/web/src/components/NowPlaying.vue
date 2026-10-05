@@ -57,6 +57,9 @@ function mute() {
     <p v-if="player?.error" class="inline-error player-error" role="alert">
       {{ player.error.code === 'PLAYER_UNAVAILABLE' ? '实体播放器暂不可用。' : '这次播放未能完成。' }} {{ player.error.message }}
     </p>
+    <p v-if="player?.warning" class="inline-warning player-warning" role="status">
+      {{ player.warning.code === 'AUDIO_DEVICE_FALLBACK' ? '实体播放器正在使用与配置不同的音频输出设备。' : '' }} {{ player.warning.message }}
+    </p>
     <div class="current-track">
       <div class="track-emblem" aria-hidden="true"><RoomIcon name="note" /></div>
       <div class="current-track-copy">

@@ -95,6 +95,10 @@ type Player = {
     code: 'PLAYER_UNAVAILABLE' | 'PLAYBACK_FAILED'
     message: string
   } | null
+  warning: {
+    code: 'AUDIO_DEVICE_FALLBACK'
+    message: string
+  } | null
 }
 type Snapshot = {
   serverInstanceId: string
@@ -169,7 +173,7 @@ Pagination defaults to `q=''`, `offset=0`, `limit=50`. Offset is 0–10000; limi
 - Seek is absolute seconds, not a delta. It requires current playback; otherwise `PLAYBACK_CONFLICT`. Reject a target beyond known duration with `VALIDATION_ERROR`. Unknown duration still obeys the seven-day numeric cap. Seek does not change playback ID.
 - Volume accepts only integer 0–100. Mute is a separate boolean; setting volume zero does not silently toggle mute. Device settings may change while idle, but still carry `targetPlaybackId: null`.
 - A new load, next, previous or retry gets a new playback ID even if the same track or queue entry plays again. Resume, pause and seek retain it. EOF/error/position messages from an older playback must not mutate a newer playback. Serialize natural advancement with HTTP commands so simultaneous next/EOF never double-consumes.
-- Missing/out-of-root/replaced catalog files are not playable. Driver failures are explicit, sanitized and reflected in the authoritative snapshot; clients never optimistically remove an entry or show playback success merely because a click occurred.
+- Missing/out-of-root/replaced catalog files are not playable. Driver failures are explicit, sanitized and reflected in the authoritative snapshot; clients never optimistically remove an entry or show playback success merely because a click occurred. `warning` is a persistent, non-fatal condition (currently only `AUDIO_DEVICE_FALLBACK`, set when mpv's detected output device differs from an explicitly configured `MPV_AUDIO_DEVICE`); unlike `error` it never blocks playback, it is cleared when the device matches again or playback restarts, and it requires a current entry.
 - Waiting entries persist in SQLite. On restart, start idle without auto-resuming or requeueing the old current entry; keep persisted waiting order, clear volatile history and idempotency caches, reset revision/sequence and create a fresh `serverInstanceId`. Accounts/sessions survive only according to their persisted validity/expiry. There is no promise to resume interrupted audio.
 
 ### Concurrency and retries

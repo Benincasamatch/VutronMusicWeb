@@ -13,9 +13,9 @@ interface Internals {
   observations: Map<number, { playbackId: string, property: string }>
 }
 
-function ipcFixture(options: { acknowledge?: boolean, load?: boolean } = {}) {
+function ipcFixture(options: { acknowledge?: boolean, load?: boolean, device?: string } = {}) {
   const logs: string[] = []
-  const driver = new MpvDriver('/never-executed/mpv', 'auto', (message) => logs.push(message))
+  const driver = new MpvDriver('/never-executed/mpv', options.device ?? 'auto', (message) => logs.push(message))
   const internals = driver as unknown as Internals
   const events: DriverEvent[] = []
   const commands: Array<{ command: unknown[], request_id: number }> = []
@@ -151,5 +151,37 @@ describe('private mpv JSON IPC', () => {
     expect(internals.failure).toBeUndefined()
     expect(internals.stderrTail).toEqual([])
     await f.driver.close()
+  })
+
+  it('flags a fallback when the detected device differs from an explicit device', async () => {
+    const f = ipcFixture({ device: 'pulse/alsa_output.hifi' })
+    try {
+      const id = randomUUID()
+      await f.driver.load('/private/first', id)
+      const observer = [...f.internals.observations.entries()].find(([, value]) => value.property === 'audio-out-detected-device')
+      expect(observer).toBeDefined()
+      const observerId = observer![0]
+      f.internals.consume(`${JSON.stringify({ event: 'property-change', id: observerId, data: 'alsa_output.usb-headset' })}\n`)
+      expect(f.events).toContainEqual({
+        type: 'device', playbackId: id, expected: 'pulse/alsa_output.hifi', detected: 'alsa_output.usb-headset', mismatch: true
+      })
+      f.internals.consume(`${JSON.stringify({ event: 'property-change', id: observerId, data: 'alsa_output.hifi' })}\n`)
+      expect(f.events.at(-1)).toMatchObject({ type: 'device', detected: 'alsa_output.hifi', mismatch: false })
+    } finally {
+      await f.driver.close()
+    }
+  })
+
+  it('never flags a mismatch for the auto device', async () => {
+    const f = ipcFixture()
+    try {
+      const id = randomUUID()
+      await f.driver.load('/private/first', id)
+      const observerId = [...f.internals.observations.entries()].find(([, value]) => value.property === 'audio-out-detected-device')![0]
+      f.internals.consume(`${JSON.stringify({ event: 'property-change', id: observerId, data: 'whatever-picked' })}\n`)
+      expect(f.events.at(-1)).toMatchObject({ type: 'device', detected: 'whatever-picked', mismatch: false })
+    } finally {
+      await f.driver.close()
+    }
   })
 })

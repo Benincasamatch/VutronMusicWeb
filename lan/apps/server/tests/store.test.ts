@@ -16,7 +16,8 @@ const idle: Player = {
   durationSeconds: null,
   volume: 35,
   muted: false,
-  error: null
+  error: null,
+  warning: null
 }
 
 function entry(): QueueEntry {

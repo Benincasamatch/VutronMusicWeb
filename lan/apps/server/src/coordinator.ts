@@ -83,7 +83,8 @@ export class Coordinator {
       durationSeconds: null,
       volume: Math.min(100, Math.max(0, saved?.volume ?? 35)),
       muted: saved?.muted ?? false,
-      error: null
+      error: null,
+      warning: null
     }
     this.snapshot()
     driver.setEventSink((event) => this.enqueueDriverEvent(event))
@@ -425,7 +426,7 @@ export class Coordinator {
       this.remember()
       await this.releaseLease()
       this.currentStarted = false
-      this.player = { ...this.player, status: 'idle', current: null, playbackId: null, positionSeconds: 0, durationSeconds: null, error: null }
+      this.player = { ...this.player, status: 'idle', current: null, playbackId: null, positionSeconds: 0, durationSeconds: null, error: null, warning: null }
     }
   }
 
@@ -440,7 +441,8 @@ export class Coordinator {
       playbackId: randomUUID(),
       positionSeconds: 0,
       durationSeconds: null,
-      error: null
+      error: null,
+      warning: null
     }
     // Persist consumption before audio starts. A crash cannot put a started entry back in WAITING.
     this.persist()
@@ -468,7 +470,7 @@ export class Coordinator {
     }
     await this.driver.volume(this.player.volume)
     await this.driver.mute(this.player.muted)
-    this.player = { ...this.player, status: 'idle', error: null }
+    this.player = { ...this.player, status: 'idle', error: null, warning: null }
     this.announceRecovery()
   }
 
@@ -476,6 +478,7 @@ export class Coordinator {
     await this.driver.stop().catch(() => this.driver.close())
     await this.releaseLease()
     this.player.status = 'error'
+    this.player.warning = null
     this.player.error = { code, message: code === 'PLAYER_UNAVAILABLE' ? 'The physical player is unavailable' : 'The local file could not be played' }
   }
 
@@ -493,6 +496,17 @@ export class Coordinator {
       if (event.positionSeconds !== null) this.player.positionSeconds = event.positionSeconds
       this.player.durationSeconds = event.durationSeconds
       this.sampleDirty = true
+      return
+    }
+    if (event.type === 'device') {
+      const warning = event.mismatch
+        ? { code: 'AUDIO_DEVICE_FALLBACK' as const, message: 'The player is using a different audio output device than configured' }
+        : null
+      if (this.player.warning?.code === warning?.code) return
+      this.player.warning = warning
+      this.increment('revision')
+      this.persist()
+      this.publish()
       return
     }
     if (event.type === 'pause') {

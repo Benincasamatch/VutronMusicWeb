@@ -91,6 +91,13 @@ export const PlayerErrorSchema = z.object({
 }).strict()
 export type PlayerError = z.infer<typeof PlayerErrorSchema>
 
+// A persistent, non-fatal condition: playback continues, but not where it was configured to.
+export const PlayerWarningSchema = z.object({
+  code: z.literal('AUDIO_DEVICE_FALLBACK'),
+  message: z.string()
+}).strict()
+export type PlayerWarning = z.infer<typeof PlayerWarningSchema>
+
 export const PlayerSchema = z.object({
   status: PlayerStatusSchema,
   current: QueueEntrySchema.nullable(),
@@ -99,7 +106,8 @@ export const PlayerSchema = z.object({
   durationSeconds: DurationSchema.nullable(),
   volume: z.number().int().min(0).max(100),
   muted: z.boolean(),
-  error: PlayerErrorSchema.nullable()
+  error: PlayerErrorSchema.nullable(),
+  warning: PlayerWarningSchema.nullable()
 }).strict().superRefine((player, context) => {
   const issue = (path: string, message: string) => {
     context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message })
@@ -118,6 +126,9 @@ export const PlayerSchema = z.object({
   }
   if ((player.status === 'error') !== (player.error !== null)) {
     issue('error', 'Only an error status carries a player error')
+  }
+  if (player.warning !== null && player.current === null) {
+    issue('warning', 'A player warning requires a current entry')
   }
 })
 export type Player = z.infer<typeof PlayerSchema>

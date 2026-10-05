@@ -5,6 +5,7 @@ export type DriverEvent =
   | { type: 'pause', playbackId: string, paused: boolean }
   | { type: 'ended', playbackId: string, reason: 'eof' | 'error' }
   | { type: 'unavailable', playbackId: string | null }
+  | { type: 'device', playbackId: string, expected: string, detected: string | null, mismatch: boolean }
 
 export interface PlayerDriver {
   readonly simulation: boolean

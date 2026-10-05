@@ -229,6 +229,21 @@ describe('authoritative shared control', () => {
     expect(failed.player.error?.code).toBe('PLAYER_UNAVAILABLE')
   })
 
+  it('surfaces an audio-device fallback as a persistent warning and clears it when resolved', async () => {
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    const id = f.coordinator.snapshot().player.playbackId!
+    f.driver.emit({ type: 'device', playbackId: randomUUID(), expected: 'pulse/a', detected: 'pulse/b', mismatch: true })
+    await f.coordinator.serial(() => undefined)
+    expect(f.coordinator.snapshot().player.warning).toBeNull()
+    f.driver.emit({ type: 'device', playbackId: id, expected: 'pulse/a', detected: 'pulse/b', mismatch: true })
+    await f.coordinator.serial(() => undefined)
+    expect(f.coordinator.snapshot().player.warning?.code).toBe('AUDIO_DEVICE_FALLBACK')
+    f.driver.emit({ type: 'device', playbackId: id, expected: 'pulse/a', detected: 'pulse/a', mismatch: false })
+    await f.coordinator.serial(() => undefined)
+    expect(f.coordinator.snapshot().player.warning).toBeNull()
+  })
+
   it('enforces the per-account waiting allowance', async () => {
     for (let index = 0; index < 50; index += 1) await f.enqueue()
     await expect(f.enqueue()).rejects.toMatchObject({ code: 'QUEUE_FULL' })

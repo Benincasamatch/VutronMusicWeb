@@ -23,13 +23,25 @@ interface Loading {
 
 interface Observation {
   playbackId: string
-  property: 'time-pos' | 'duration' | 'pause'
+  property: 'time-pos' | 'duration' | 'pause' | 'audio-out-detected-device'
 }
 
 // Journal lines must stay diagnosable without echoing absolute library paths.
 // Everything from the first absolute path to the end of the line is dropped, so a
 // filename containing spaces cannot leak through either.
 const redact = (line: string): string => line.replace(/(^|[\s'"(=:])\/.*$/, '$1<path>').slice(0, 300)
+
+// mpv reports the AO's own device name for a configured `ao/device` pair, so compare loosely.
+// 'auto' means "let mpv choose", which is never a mismatch.
+const deviceMismatch = (expected: string, detected: string | null): boolean => {
+  if (expected === 'auto' || !detected) return false
+  const wanted = expected.trim().toLowerCase()
+  const actual = detected.trim().toLowerCase()
+  if (!actual || wanted === actual) return false
+  const device = wanted.slice(wanted.indexOf('/') + 1)
+  if (!device) return false
+  return !(actual === device || actual.endsWith(device) || device.endsWith(actual))
+}
 
 export class MpvDriver implements PlayerDriver {
   readonly simulation = false
@@ -252,6 +264,17 @@ export class MpvDriver implements PlayerDriver {
         }
         return
       }
+      if (observation.property === 'audio-out-detected-device') {
+        const detected = typeof message.data === 'string' && message.data.trim() ? message.data : null
+        this.sink({
+          type: 'device',
+          playbackId: observation.playbackId,
+          expected: this.audioDevice,
+          detected,
+          mismatch: deviceMismatch(this.audioDevice, detected)
+        })
+        return
+      }
       const value = typeof message.data === 'number' && Number.isFinite(message.data) && message.data >= 0 &&
         message.data <= LIMITS.maxDurationSeconds ? message.data : null
       if (observation.property === 'time-pos') this.position = value
@@ -284,6 +307,16 @@ export class MpvDriver implements PlayerDriver {
         const id = ++this.observeCounter
         this.observations.set(id, { playbackId, property })
         await this.command(['observe_property', id, property])
+      }
+      if (this.observeCounter < Number.MAX_SAFE_INTEGER) {
+        const deviceObserver = ++this.observeCounter
+        this.observations.set(deviceObserver, { playbackId, property: 'audio-out-detected-device' })
+        try {
+          await this.command(['observe_property', deviceObserver, 'audio-out-detected-device'])
+        } catch {
+          // Optional diagnostic property: an mpv build without it must not fail playback.
+          this.observations.delete(deviceObserver)
+        }
       }
       await this.command(['set_property', 'pause', false])
       this.suppressPause = false

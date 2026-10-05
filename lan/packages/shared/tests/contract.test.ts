@@ -55,7 +55,8 @@ const player: Player = {
   durationSeconds: null,
   volume: 50,
   muted: false,
-  error: null
+  error: null,
+  warning: null
 }
 const snapshot: Snapshot = {
   serverInstanceId: id(4),
