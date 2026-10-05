@@ -267,10 +267,12 @@ describe('authoritative shared control', () => {
     await expect(f.enqueue()).rejects.toMatchObject({ code: 'QUEUE_FULL' })
   })
 
-  it('recovers waiting order and safe settings but never auto-resumes interrupted audio', async () => {
+  it('recovers waiting order, safe settings and the interrupted entry without resuming audio', async () => {
     await f.enqueue()
     await f.enqueue()
     await f.coordinator.control(f.admin.context, 'play', f.playback())
+    const interrupted = f.coordinator.snapshot().player.current!
+    await f.coordinator.control(f.admin.context, 'seek', { ...f.playback(), positionSeconds: 42 })
     await f.coordinator.control(f.admin.context, 'volume', { ...f.playback(), volume: 20 })
     const before = f.coordinator.snapshot()
     await f.coordinator.close()
@@ -282,10 +284,92 @@ describe('authoritative shared control', () => {
       expect(restored.serverInstanceId).not.toBe(before.serverInstanceId)
       expect(restored.queue.entries).toEqual(before.queue.entries)
       expect(restored.queue.revision).toBe(0)
+      expect(restored.player.status).toBe('paused')
+      expect(restored.player.current?.entryId).toBe(interrupted.entryId)
+      expect(restored.player.positionSeconds).toBe(42)
+      // The restored entry is a new playback epoch, not the one the old process handed out.
+      expect(restored.player.playbackId).not.toBe(before.player.playbackId)
+      expect(restored.player.playbackId).not.toBeNull()
+      expect(restored.player.volume).toBe(20)
+      // Restoring state must not touch the player: nothing loaded, nothing unpaused, no audio.
+      expect(nextDriver.calls.some((call) => call.operation === 'load')).toBe(false)
+      expect(nextDriver.calls.some((call) => call.operation === 'pause')).toBe(false)
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('resumes a restored entry from its saved position only when the user asks', async () => {
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    await f.coordinator.control(f.admin.context, 'seek', { ...f.playback(), positionSeconds: 42 })
+    await f.coordinator.close()
+    const nextDriver = new FakeDriver()
+    const restarted = new Coordinator(f.store, f.catalog, nextDriver, f.auth)
+    const command = (command: string, body: Record<string, unknown>) => restarted.control(f.admin.context, command as never, {
+      requestId: randomUUID(),
+      serverInstanceId: restarted.serverInstanceId,
+      expectedRevision: restarted.snapshot().queue.revision,
+      targetPlaybackId: restarted.snapshot().player.playbackId,
+      ...body
+    })
+    try {
+      await restarted.initialize()
+      expect(nextDriver.calls.some((call) => call.operation === 'load')).toBe(false)
+      await command('play', {})
+      expect(restarted.snapshot().player.status).toBe('playing')
+      expect(nextDriver.calls.filter((call) => call.operation === 'load')).toHaveLength(1)
+      // Loaded once and then positioned, rather than played from the start.
+      expect(nextDriver.calls.find((call) => call.operation === 'seek')?.value).toBe(42)
+      expect(restarted.snapshot().player.positionSeconds).toBe(42)
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('keeps the restored entry reachable by previous', async () => {
+    await f.enqueue()
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    const interrupted = f.coordinator.snapshot().player.current!
+    await f.coordinator.close()
+    const nextDriver = new FakeDriver()
+    const restarted = new Coordinator(f.store, f.catalog, nextDriver, f.auth)
+    const command = (command: string) => restarted.control(f.admin.context, command as never, {
+      requestId: randomUUID(),
+      serverInstanceId: restarted.serverInstanceId,
+      expectedRevision: restarted.snapshot().queue.revision,
+      targetPlaybackId: restarted.snapshot().player.playbackId
+    })
+    try {
+      await restarted.initialize()
+      await command('next')
+      expect(restarted.snapshot().player.current?.entryId).not.toBe(interrupted.entryId)
+      await command('previous')
+      expect(restarted.snapshot().player.current?.entryId).toBe(interrupted.entryId)
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('drops a restored entry whose track is no longer in the catalog', async () => {
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    await f.coordinator.close()
+    const nextDriver = new FakeDriver()
+    const restarted = new Coordinator(
+      f.store,
+      { get: () => undefined, acquire: (id: string) => f.catalog.acquire(id) },
+      nextDriver,
+      f.auth
+    )
+    try {
+      await restarted.initialize()
+      const restored = restarted.snapshot()
       expect(restored.player.status).toBe('idle')
       expect(restored.player.current).toBeNull()
-      expect(restored.player.volume).toBe(20)
-      expect(nextDriver.calls.some((call) => call.operation === 'load')).toBe(false)
+      expect(restored.player.playbackId).toBeNull()
+      expect(restored.player.positionSeconds).toBe(0)
     } finally {
       await restarted.close()
     }

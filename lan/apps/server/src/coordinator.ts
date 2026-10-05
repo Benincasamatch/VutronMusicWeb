@@ -52,6 +52,10 @@ export class Coordinator {
   private player: Player
   private history: QueueEntry[] = []
   private currentStarted = false
+  // Whether the driver currently holds the file for the current entry.
+  private loaded = false
+  // Set only when an interrupted entry is restored; consumed by the next load.
+  private resumeAt: number | null = null
   private lease: FileLease | undefined
   private chain: Promise<unknown> = Promise.resolve()
   private readonly pending = { external: 0, internal: 0 }
@@ -74,17 +78,27 @@ export class Coordinator {
   ) {
     this.queue = store.waiting()
     const saved = store.checkpoint()
-    // Frozen protocol v1: keep waiting order/settings, never replay or requeue interrupted audio.
+    // Waiting order and settings survive a restart. The interrupted entry is restored too, but only as
+    // a paused entry the user must start again: nothing is loaded into the player, so no audio resumes
+    // on its own. An entry whose track left the catalog is dropped instead of being shown as something
+    // that can never play.
+    const interrupted = saved?.current && catalog.get(saved.current.track.id) ? saved : null
     this.player = {
-      status: 'idle',
-      current: null,
-      playbackId: null,
-      positionSeconds: 0,
-      durationSeconds: null,
+      status: interrupted ? 'paused' : 'idle',
+      current: interrupted?.current ?? null,
+      playbackId: interrupted ? randomUUID() : null,
+      positionSeconds: interrupted?.positionSeconds ?? 0,
+      durationSeconds: interrupted?.durationSeconds ?? null,
       volume: Math.min(100, Math.max(0, saved?.volume ?? 35)),
       muted: saved?.muted ?? false,
       error: null,
       warning: null
+    }
+    if (interrupted) {
+      // The file is not loaded yet, so the first play must load it and then seek to this position.
+      this.resumeAt = interrupted.positionSeconds
+      // It was the entry being played before the restart, so it belongs in history like any other.
+      this.currentStarted = true
     }
     this.snapshot()
     driver.setEventSink((event) => this.enqueueDriverEvent(event))
@@ -348,7 +362,9 @@ export class Coordinator {
     switch (command) {
       case 'play':
         if (this.player.status === 'playing') return
-        if (this.player.status === 'paused') {
+        // A paused entry the driver still holds is a plain unpause. A restored entry has nothing
+        // loaded yet, so it falls through to a load that resumes at the saved position.
+        if (this.player.status === 'paused' && this.loaded) {
           await this.driver.pause(false)
           this.player.status = 'playing'
           return
@@ -357,7 +373,7 @@ export class Coordinator {
         if (this.player.status === 'error' && this.player.error?.code === 'PLAYER_UNAVAILABLE') {
           await this.rebuildDriver()
         }
-        if (this.player.current) await this.load(this.player.current)
+        if (this.player.current) await this.load(this.player.current, this.resumeAt ?? 0)
         else {
           const entry = this.queue.shift()
           if (!entry) return fail('NOT_FOUND')
@@ -426,14 +442,18 @@ export class Coordinator {
       this.remember()
       await this.releaseLease()
       this.currentStarted = false
+      this.loaded = false
+      this.resumeAt = null
       this.player = { ...this.player, status: 'idle', current: null, playbackId: null, positionSeconds: 0, durationSeconds: null, error: null, warning: null }
     }
   }
 
-  private async load(entry: QueueEntry): Promise<void> {
+  private async load(entry: QueueEntry, startAt = 0): Promise<void> {
     // A retried entry cannot simultaneously remain an addressable historical entry.
     this.history = this.history.filter((historical) => historical.entryId !== entry.entryId)
     this.currentStarted = false
+    this.loaded = false
+    this.resumeAt = null
     this.player = {
       ...this.player,
       status: 'loading',
@@ -450,7 +470,13 @@ export class Coordinator {
     await this.releaseLease()
     this.lease = await this.catalog.acquire(entry.track.id)
     await this.driver.load(this.lease.path, this.player.playbackId!)
+    // The file is loaded, so a restored position is a seek rather than a replay of the whole track.
+    if (startAt > 0) {
+      await this.driver.seek(startAt)
+      this.player.positionSeconds = startAt
+    }
     this.currentStarted = true
+    this.loaded = true
     this.player.status = 'playing'
   }
 
@@ -470,13 +496,16 @@ export class Coordinator {
     }
     await this.driver.volume(this.player.volume)
     await this.driver.mute(this.player.muted)
-    this.player = { ...this.player, status: 'idle', error: null, warning: null }
+    this.loaded = false
+    // A restarted player holds no file; an entry that is still current stays paused, never idle.
+    this.player = { ...this.player, status: this.player.current ? 'paused' : 'idle', error: null, warning: null }
     this.announceRecovery()
   }
 
   private async markFailure(code: 'PLAYER_UNAVAILABLE' | 'PLAYBACK_FAILED'): Promise<void> {
     await this.driver.stop().catch(() => this.driver.close())
     await this.releaseLease()
+    this.loaded = false
     this.player.status = 'error'
     this.player.warning = null
     this.player.error = { code, message: code === 'PLAYER_UNAVAILABLE' ? 'The physical player is unavailable' : 'The local file could not be played' }
