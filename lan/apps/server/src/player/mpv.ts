@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { LIMITS } from '@lan/shared'
-import { MPV_SOCKET_PREFIX } from '../orphans.js'
 import { DriverError, type DriverEvent, type PlayerDriver } from './driver.js'
 
 interface PendingCommand {
@@ -24,7 +23,7 @@ interface Loading {
 
 interface Observation {
   playbackId: string
-  property: 'time-pos' | 'duration' | 'pause' | 'audio-out-detected-device'
+  property: 'time-pos' | 'duration' | 'pause'
 }
 
 // Journal lines must stay diagnosable without echoing absolute library paths.
@@ -32,17 +31,11 @@ interface Observation {
 // filename containing spaces cannot leak through either.
 const redact = (line: string): string => line.replace(/(^|[\s'"(=:])\/.*$/, '$1<path>').slice(0, 300)
 
-// mpv reports the AO's own device name for a configured `ao/device` pair, so compare loosely.
-// 'auto' means "let mpv choose", which is never a mismatch.
-const deviceMismatch = (expected: string, detected: string | null): boolean => {
-  if (expected === 'auto' || !detected) return false
-  const wanted = expected.trim().toLowerCase()
-  const actual = detected.trim().toLowerCase()
-  if (!actual || wanted === actual) return false
-  const device = wanted.slice(wanted.indexOf('/') + 1)
-  if (!device) return false
-  return !(actual === device || actual.endsWith(device) || device.endsWith(actual))
-}
+// mpv reports a fallback in its own error output rather than through a property:
+// `audio-out-detected-device` is not available on every build (mpv 0.39 answers "property not
+// found"), and `audio-device` only echoes back what was requested. Abandoning the driver we
+// configured is both always observable and exactly the condition worth warning about.
+const AUDIO_FALLBACK_MARKER = /Failed to initialize audio driver '([^']*)'/
 
 export class MpvDriver implements PlayerDriver {
   readonly simulation = false
@@ -55,7 +48,7 @@ export class MpvDriver implements PlayerDriver {
   private ready = false
   private buffer = ''
   private failure: string | undefined
-  private readonly stderrTail: string[] = []
+  private readonly outputTail: string[] = []
   private requestCounter = 0
   private observeCounter = 0
   private readonly pending = new Map<number, PendingCommand>()
@@ -68,10 +61,12 @@ export class MpvDriver implements PlayerDriver {
   private duration: number | null = null
   private expectedPause = false
   private suppressPause = false
+  private deviceFallback = false
 
   constructor(
     private readonly executable: string,
     private readonly audioDevice: string,
+    private readonly socketPrefix: string,
     private readonly report: (message: string) => void = (message) => { process.stderr.write(`${message}\n`) }
   ) {}
 
@@ -85,11 +80,11 @@ export class MpvDriver implements PlayerDriver {
     }
     if (process.getuid?.() === 0) throw new Error('mpv must not run as OS root')
     if (this.child || this.closing) throw new DriverError('PLAYER_UNAVAILABLE')
-    this.directory = await mkdtemp(join(tmpdir(), MPV_SOCKET_PREFIX))
+    this.directory = await mkdtemp(join(tmpdir(), this.socketPrefix))
     await chmod(this.directory, 0o700)
     const socketPath = join(this.directory, 'ipc')
     if (Buffer.byteLength(socketPath) > 100) {
-      await this.close()
+      await this.reset()
       this.report('mpv player unavailable: the private IPC socket path is too long for this temporary directory')
       throw new Error('Temporary directory is too long for a private Unix socket')
     }
@@ -146,10 +141,21 @@ export class MpvDriver implements PlayerDriver {
       this.socket.on('error', () => this.connectionFailed('the private IPC socket reported an error'))
       this.socket.on('close', () => this.connectionFailed('the private IPC socket closed unexpectedly'))
       await this.command(['get_property', 'mpv-version'])
+      // --terminal=no also suppresses mpv's own messages on stderr, so the supported way to observe
+      // its warnings is to have the IPC channel forward them. Without this a device fallback is
+      // completely silent, which is exactly how it went unnoticed before.
+      try {
+        await this.command(['request_log_messages', 'warn'])
+      } catch {
+        this.report('mpv does not forward log messages; an audio device fallback cannot be detected on this build')
+      }
       this.ready = true
     } catch (error) {
-      await this.close()
-      if (!this.failure) this.report(`mpv player unavailable: ${error instanceof Error ? redact(error.message) : 'startup failed'}`)
+      const failure = this.failure
+      // Clean up without closing: close() is terminal, so using it here would make one failed
+      // start permanent and block every later restart even after the host problem is fixed.
+      await this.reset()
+      if (!failure) this.report(`mpv player unavailable: ${error instanceof Error ? redact(error.message) : 'startup failed'}`)
       throw new DriverError('PLAYER_UNAVAILABLE')
     }
   }
@@ -211,6 +217,15 @@ export class MpvDriver implements PlayerDriver {
   }
 
   private message(message: Record<string, unknown>): void {
+    if (message.event === 'log-message' && typeof message.text === 'string') {
+      const text = message.text.trim()
+      if (text) {
+        this.outputTail.push(redact(text))
+        if (this.outputTail.length > 8) this.outputTail.shift()
+      }
+      this.noteAudioFallback(message.text)
+      return
+    }
     if (typeof message.request_id === 'number') {
       const pending = this.pending.get(message.request_id)
       if (!pending) return
@@ -290,6 +305,7 @@ export class MpvDriver implements PlayerDriver {
     this.playbackId = playbackId
     this.expectedPause = false
     this.suppressPause = true
+    this.deviceFallback = false
     this.position = null
     this.duration = null
     const loaded = new Promise<void>((resolve, reject) => {
@@ -308,16 +324,6 @@ export class MpvDriver implements PlayerDriver {
         const id = ++this.observeCounter
         this.observations.set(id, { playbackId, property })
         await this.command(['observe_property', id, property])
-      }
-      if (this.observeCounter < Number.MAX_SAFE_INTEGER) {
-        const deviceObserver = ++this.observeCounter
-        this.observations.set(deviceObserver, { playbackId, property: 'audio-out-detected-device' })
-        try {
-          await this.command(['observe_property', deviceObserver, 'audio-out-detected-device'])
-        } catch {
-          // Optional diagnostic property: an mpv build without it must not fail playback.
-          this.observations.delete(deviceObserver)
-        }
       }
       await this.command(['set_property', 'pause', false])
       this.suppressPause = false
@@ -366,13 +372,35 @@ export class MpvDriver implements PlayerDriver {
     await this.command(['set_property', 'mute', muted])
   }
 
+  // Raw stderr still matters for messages mpv's own logging never sees, such as those written
+  // directly by linked libraries, so both sources feed the same bounded tail and the same check.
   private collectStderr(chunk: string): void {
     for (const line of chunk.split('\n')) {
       const text = line.trim()
       if (!text) continue
-      this.stderrTail.push(redact(text))
-      if (this.stderrTail.length > 8) this.stderrTail.shift()
+      this.outputTail.push(redact(text))
+      if (this.outputTail.length > 8) this.outputTail.shift()
+      this.noteAudioFallback(text)
     }
+  }
+
+  // Warn only when mpv abandons the very driver we asked for. mpv may probe drivers of its own
+  // accord, and an unconfigured `auto` selection is never a mismatch, so both are ignored.
+  private noteAudioFallback(line: string): void {
+    if (this.deviceFallback || !this.playbackId || this.audioDevice === 'auto') return
+    const separator = this.audioDevice.indexOf('/')
+    if (separator <= 0) return
+    const wanted = this.audioDevice.slice(0, separator)
+    const match = AUDIO_FALLBACK_MARKER.exec(line)
+    if (!match || match[1] !== wanted) return
+    this.deviceFallback = true
+    this.sink({
+      type: 'device',
+      playbackId: this.playbackId,
+      expected: this.audioDevice,
+      detected: match[1]!,
+      mismatch: true
+    })
   }
 
   private connectionFailed(cause: string): void {
@@ -380,7 +408,7 @@ export class MpvDriver implements PlayerDriver {
     this.broken = true
     this.failure = cause
     if (!this.closing) {
-      const last = this.stderrTail[this.stderrTail.length - 1]
+      const last = this.outputTail[this.outputTail.length - 1]
       this.report(`mpv player unavailable: ${cause}${last ? `; last mpv output: ${last}` : ''}`)
     }
     const error = new DriverError('PLAYER_UNAVAILABLE')
@@ -422,7 +450,8 @@ export class MpvDriver implements PlayerDriver {
     this.duration = null
     this.expectedPause = false
     this.suppressPause = false
-    this.stderrTail.length = 0
+    this.deviceFallback = false
+    this.outputTail.length = 0
   }
 
   private async discardChild(): Promise<void> {

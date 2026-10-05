@@ -15,7 +15,7 @@ interface Internals {
 
 function ipcFixture(options: { acknowledge?: boolean, load?: boolean, device?: string } = {}) {
   const logs: string[] = []
-  const driver = new MpvDriver('/never-executed/mpv', options.device ?? 'auto', (message) => logs.push(message))
+  const driver = new MpvDriver('/never-executed/mpv', options.device ?? 'auto', 'lan-mpv-test-', (message) => logs.push(message))
   const internals = driver as unknown as Internals
   const events: DriverEvent[] = []
   const commands: Array<{ command: unknown[], request_id: number }> = []
@@ -132,56 +132,68 @@ describe('private mpv JSON IPC', () => {
 
   it('keeps only a bounded tail of mpv output', async () => {
     const f = ipcFixture()
-    const internals = f.internals as unknown as { stderrTail: string[] }
+    const internals = f.internals as unknown as { outputTail: string[] }
     for (let index = 0; index < 20; index += 1) f.internals.collectStderr(`line ${index}\n`)
-    expect(internals.stderrTail).toHaveLength(8)
-    expect(internals.stderrTail[7]).toBe('line 19')
+    expect(internals.outputTail).toHaveLength(8)
+    expect(internals.outputTail[7]).toBe('line 19')
     await f.driver.close()
+  })
+
+  it('keeps close terminal while reset stays retryable', async () => {
+    const f = ipcFixture()
+    const internals = f.internals as unknown as { closing: boolean, reset: () => Promise<void> }
+    // Cleanup after a failed start must leave the driver retryable; only close() is terminal.
+    await internals.reset()
+    expect(internals.closing).toBe(false)
+    await f.driver.close()
+    expect(internals.closing).toBe(true)
+    await expect(f.driver.restart()).rejects.toMatchObject({ code: 'PLAYER_UNAVAILABLE' })
   })
 
   it('restart clears the failure state and the output tail before starting again', async () => {
     const f = ipcFixture()
-    const internals = f.internals as unknown as { broken: boolean, failure?: string, stderrTail: string[], reset: () => Promise<void> }
+    const internals = f.internals as unknown as { broken: boolean, failure?: string, outputTail: string[], reset: () => Promise<void> }
     f.internals.collectStderr('boom\n')
     f.internals.consume('this is not JSON\n')
     expect(internals.broken).toBe(true)
-    expect(internals.stderrTail).toEqual(['boom'])
+    expect(internals.outputTail).toEqual(['boom'])
     await internals.reset()
     expect(internals.broken).toBe(false)
     expect(internals.failure).toBeUndefined()
-    expect(internals.stderrTail).toEqual([])
+    expect(internals.outputTail).toEqual([])
     await f.driver.close()
   })
 
-  it('flags a fallback when the detected device differs from an explicit device', async () => {
+  it('flags a fallback when mpv abandons the audio driver that was configured', async () => {
     const f = ipcFixture({ device: 'pulse/alsa_output.hifi' })
     try {
       const id = randomUUID()
       await f.driver.load('/private/first', id)
-      const observer = [...f.internals.observations.entries()].find(([, value]) => value.property === 'audio-out-detected-device')
-      expect(observer).toBeDefined()
-      const observerId = observer![0]
-      f.internals.consume(`${JSON.stringify({ event: 'property-change', id: observerId, data: 'alsa_output.usb-headset' })}\n`)
+      f.internals.consume(`${JSON.stringify({ event: 'log-message', prefix: 'ao', level: 'error', text: "Failed to initialize audio driver 'pulse'\\n" })}\n`)
       expect(f.events).toContainEqual({
-        type: 'device', playbackId: id, expected: 'pulse/alsa_output.hifi', detected: 'alsa_output.usb-headset', mismatch: true
+        type: 'device', playbackId: id, expected: 'pulse/alsa_output.hifi', detected: 'pulse', mismatch: true
       })
-      f.internals.consume(`${JSON.stringify({ event: 'property-change', id: observerId, data: 'alsa_output.hifi' })}\n`)
-      expect(f.events.at(-1)).toMatchObject({ type: 'device', detected: 'alsa_output.hifi', mismatch: false })
+      // mpv repeats itself while it falls back; the operator needs one warning per entry, not a flood.
+      f.internals.consume(`${JSON.stringify({ event: 'log-message', prefix: 'ao', level: 'error', text: "Failed to initialize audio driver 'pulse'\\n" })}\n`)
+      expect(f.events.filter((event) => event.type === 'device')).toHaveLength(1)
     } finally {
       await f.driver.close()
     }
   })
 
-  it('never flags a mismatch for the auto device', async () => {
-    const f = ipcFixture()
+  it('ignores drivers mpv was not asked to use, and never flags an automatic selection', async () => {
+    const explicit = ipcFixture({ device: 'pulse/alsa_output.hifi' })
+    const automatic = ipcFixture()
     try {
-      const id = randomUUID()
-      await f.driver.load('/private/first', id)
-      const observerId = [...f.internals.observations.entries()].find(([, value]) => value.property === 'audio-out-detected-device')![0]
-      f.internals.consume(`${JSON.stringify({ event: 'property-change', id: observerId, data: 'whatever-picked' })}\n`)
-      expect(f.events.at(-1)).toMatchObject({ type: 'device', detected: 'whatever-picked', mismatch: false })
+      await explicit.driver.load('/private/first', randomUUID())
+      explicit.internals.consume(`${JSON.stringify({ event: 'log-message', prefix: 'ao', level: 'error', text: "Failed to initialize audio driver 'jack'\\n" })}\n`)
+      expect(explicit.events).toEqual([])
+      await automatic.driver.load('/private/first', randomUUID())
+      automatic.internals.consume(`${JSON.stringify({ event: 'log-message', prefix: 'ao', level: 'error', text: "Failed to initialize audio driver 'pulse'\\n" })}\n`)
+      expect(automatic.events).toEqual([])
     } finally {
-      await f.driver.close()
+      await explicit.driver.close()
+      await automatic.driver.close()
     }
   })
 })

@@ -394,6 +394,12 @@ export class Coordinator {
         if (!previous) {
           if (!this.player.current) return fail('NOT_FOUND')
           if (this.player.status === 'error') return fail('PLAYBACK_CONFLICT')
+          // Rewinding a restored entry is the same deferred seek as any other position.
+          if (!this.loaded) {
+            this.resumeAt = 0
+            this.player.positionSeconds = 0
+            return
+          }
           await this.driver.seek(0)
           this.player.positionSeconds = 0
           return
@@ -408,6 +414,13 @@ export class Coordinator {
         if (!this.player.current || this.player.status === 'error') return fail('PLAYBACK_CONFLICT')
         if (body.positionSeconds === undefined) return fail('VALIDATION_ERROR')
         if (this.player.durationSeconds !== null && body.positionSeconds > this.player.durationSeconds) return fail('VALIDATION_ERROR')
+        // A restored entry has no file in the driver yet, so seeking would fail there. Record the
+        // offset the first play will seek to instead of losing the entry to a driver error.
+        if (!this.loaded) {
+          this.resumeAt = body.positionSeconds
+          this.player.positionSeconds = body.positionSeconds
+          return
+        }
         await this.driver.seek(body.positionSeconds)
         this.player.positionSeconds = body.positionSeconds
         return
@@ -453,13 +466,15 @@ export class Coordinator {
     this.history = this.history.filter((historical) => historical.entryId !== entry.entryId)
     this.currentStarted = false
     this.loaded = false
-    this.resumeAt = null
+    // Hold the pending offset until the seek actually succeeds. A transient failure must not
+    // silently drop the position the user was at, and a crash mid-load must restore it again.
+    this.resumeAt = startAt > 0 ? startAt : null
     this.player = {
       ...this.player,
       status: 'loading',
       current: entry,
       playbackId: randomUUID(),
-      positionSeconds: 0,
+      positionSeconds: startAt,
       durationSeconds: null,
       error: null,
       warning: null
@@ -471,10 +486,8 @@ export class Coordinator {
     this.lease = await this.catalog.acquire(entry.track.id)
     await this.driver.load(this.lease.path, this.player.playbackId!)
     // The file is loaded, so a restored position is a seek rather than a replay of the whole track.
-    if (startAt > 0) {
-      await this.driver.seek(startAt)
-      this.player.positionSeconds = startAt
-    }
+    if (startAt > 0) await this.driver.seek(startAt)
+    this.resumeAt = null
     this.currentStarted = true
     this.loaded = true
     this.player.status = 'playing'
@@ -503,7 +516,10 @@ export class Coordinator {
   }
 
   private async markFailure(code: 'PLAYER_UNAVAILABLE' | 'PLAYBACK_FAILED'): Promise<void> {
-    await this.driver.stop().catch(() => this.driver.close())
+    // Best-effort silence only. Never close(): closing is terminal by design, so using it as the
+    // fallback here permanently disabled the rebuild that is the only way back from a dead mpv.
+    // restart() already discards the dead child through reset(), so nothing leaks by giving up here.
+    await this.driver.stop().catch(() => undefined)
     await this.releaseLease()
     this.loaded = false
     this.player.status = 'error'

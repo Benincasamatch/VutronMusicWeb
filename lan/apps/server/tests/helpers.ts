@@ -14,26 +14,41 @@ export class FakeDriver implements PlayerDriver {
   playbackId: string | null = null
   failLoad = false
   loadGate: Promise<void> | undefined
+  // A real driver is terminal once closed, and every command fails once its process is gone.
+  // Modelling both is what lets these tests see recovery bugs at all: without them the fake keeps
+  // working after a kill, so a coordinator that can never rebuild a dead mpv still looks healthy.
+  closed = false
+  dead = false
 
   setEventSink(sink: (event: DriverEvent) => void): void { this.sink = sink }
-  async start(): Promise<void> { this.calls.push({ operation: 'start' }) }
+  async start(): Promise<void> {
+    this.calls.push({ operation: 'start' })
+    if (this.closed) throw new DriverError()
+    this.dead = false
+  }
   restartFails = false
   async restart(): Promise<void> {
     this.calls.push({ operation: 'restart' })
+    if (this.closed) throw new DriverError()
     if (this.restartFails) throw new DriverError()
+    this.dead = false
+  }
+  private alive(): void {
+    if (this.closed || this.dead) throw new DriverError()
   }
   async load(_path: string, playbackId: string): Promise<void> {
     this.calls.push({ operation: 'load', value: playbackId })
+    this.alive()
     if (this.loadGate) await this.loadGate
     if (this.failLoad) throw new DriverError()
     this.playbackId = playbackId
   }
-  async stop(): Promise<void> { this.calls.push({ operation: 'stop' }) }
-  async pause(paused: boolean): Promise<void> { this.calls.push({ operation: 'pause', value: paused }) }
-  async seek(position: number): Promise<void> { this.calls.push({ operation: 'seek', value: position }) }
-  async volume(volume: number): Promise<void> { this.calls.push({ operation: 'volume', value: volume }) }
-  async mute(muted: boolean): Promise<void> { this.calls.push({ operation: 'mute', value: muted }) }
-  async close(): Promise<void> { this.calls.push({ operation: 'close' }) }
+  async stop(): Promise<void> { this.calls.push({ operation: 'stop' }); this.alive() }
+  async pause(paused: boolean): Promise<void> { this.calls.push({ operation: 'pause', value: paused }); this.alive() }
+  async seek(position: number): Promise<void> { this.calls.push({ operation: 'seek', value: position }); this.alive() }
+  async volume(volume: number): Promise<void> { this.calls.push({ operation: 'volume', value: volume }); this.alive() }
+  async mute(muted: boolean): Promise<void> { this.calls.push({ operation: 'mute', value: muted }); this.alive() }
+  async close(): Promise<void> { this.calls.push({ operation: 'close' }); this.closed = true }
   emit(event: DriverEvent): void { this.sink(event) }
 }
 

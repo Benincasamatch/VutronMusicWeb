@@ -5,7 +5,7 @@ import { MpvDriver } from './player/mpv.js'
 import { SimulationDriver } from './player/simulation.js'
 import { openStore } from './store.js'
 import { StartupError } from './errors.js'
-import { sweepOrphanMpv } from './orphans.js'
+import { mpvSocketPrefix, sweepOrphanMpv } from './orphans.js'
 
 async function main(): Promise<void> {
   assertUnprivileged()
@@ -15,8 +15,10 @@ async function main(): Promise<void> {
     throw new StartupError('Real playback requires Linux. No simulated player was selected')
   }
   const opened = await openStore(config.dataDir)
-  // A previous crash may have left an mpv child playing and holding the audio device.
-  if (!config.simulation) await sweepOrphanMpv((message) => process.stderr.write(`${message}\n`))
+  // A previous crash may have left an mpv child playing and holding the audio device. The sweep is
+  // scoped to this data directory, and the lock taken above proves no live instance owns it.
+  const socketPrefix = mpvSocketPrefix(config.dataDir)
+  if (!config.simulation) await sweepOrphanMpv(socketPrefix, (message) => process.stderr.write(`${message}\n`))
   let service: Awaited<ReturnType<typeof createApp>> | undefined
   let starting = true
   let signalRequested = false
@@ -47,7 +49,7 @@ async function main(): Promise<void> {
     const catalog = new Catalog(opened.store, config.musicRoot)
     await catalog.scan()
     if (!signalRequested) {
-      const driver = config.simulation ? new SimulationDriver() : new MpvDriver(config.mpvPath, config.audioDevice)
+      const driver = config.simulation ? new SimulationDriver() : new MpvDriver(config.mpvPath, config.audioDevice, socketPrefix)
       service = await createApp({ config, store: opened.store, catalog, driver })
       if (!signalRequested) {
         await service.app.listen({ host: config.host, port: config.port }).catch((error: NodeJS.ErrnoException) => {

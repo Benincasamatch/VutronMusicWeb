@@ -124,7 +124,11 @@ export class Catalog implements PlayableCatalog {
       // Check every component, not just the final file. Recheck after opening as well.
       await this.checkComponents(record.relative_path)
       if (!isWithin(this.root, await realpath(path))) return fail('TRACK_UNAVAILABLE')
-      handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+      // O_NONBLOCK matters for safety, not speed: opening a FIFO read-only blocks until a writer
+      // appears, so a file swapped for a FIFO after the scan would hang the coordinator's FIFO chain
+      // forever. On a regular file the flag has no effect on reads, and non-regular files are rejected
+      // by the stat below.
+      handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK | (constants.O_NOFOLLOW ?? 0))
       const stat = await handle.stat({ bigint: true })
       if (!stat.isFile() || fingerprint(stat) !== record.fingerprint) return fail('TRACK_UNAVAILABLE')
       await this.checkComponents(record.relative_path)

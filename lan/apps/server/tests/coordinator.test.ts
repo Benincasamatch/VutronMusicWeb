@@ -217,6 +217,22 @@ describe('authoritative shared control', () => {
     expect(resumed.player.error).toBeNull()
   })
 
+  it('recovers when the driver was killed and the cleanup stop also failed', async () => {
+    const frames: Array<{ type: string }> = []
+    f.coordinator.subscribe((event) => frames.push(event))
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    // A killed mpv fails every later command, including the cleanup stop() after the failure event.
+    f.driver.dead = true
+    f.driver.emit({ type: 'unavailable', playbackId: f.coordinator.snapshot().player.playbackId })
+    await f.coordinator.serial(() => undefined)
+    expect(f.coordinator.snapshot().player.error?.code).toBe('PLAYER_UNAVAILABLE')
+    // The next play must still be able to rebuild; only restart() clears the dead state.
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    expect(f.coordinator.snapshot().player.status).toBe('playing')
+    expect(frames.some((frame) => frame.type === 'player.recovered')).toBe(true)
+  })
+
   it('keeps the failure explicit when a rebuild attempt fails', async () => {
     await f.enqueue()
     await f.coordinator.control(f.admin.context, 'play', f.playback())
@@ -322,6 +338,88 @@ describe('authoritative shared control', () => {
       // Loaded once and then positioned, rather than played from the start.
       expect(nextDriver.calls.find((call) => call.operation === 'seek')?.value).toBe(42)
       expect(restarted.snapshot().player.positionSeconds).toBe(42)
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('defers a seek on a restored entry instead of failing it against an empty driver', async () => {
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    await f.coordinator.control(f.admin.context, 'seek', { ...f.playback(), positionSeconds: 42 })
+    await f.coordinator.close()
+    const nextDriver = new FakeDriver()
+    const restarted = new Coordinator(f.store, f.catalog, nextDriver, f.auth)
+    const command = (command: string, body: Record<string, unknown> = {}) => restarted.control(f.admin.context, command as never, {
+      requestId: randomUUID(),
+      serverInstanceId: restarted.serverInstanceId,
+      expectedRevision: restarted.snapshot().queue.revision,
+      targetPlaybackId: restarted.snapshot().player.playbackId,
+      ...body
+    })
+    try {
+      await restarted.initialize()
+      await command('seek', { positionSeconds: 10 })
+      // The driver holds no file yet, so the offset is recorded rather than sent to it.
+      expect(nextDriver.calls.some((call) => call.operation === 'seek')).toBe(false)
+      expect(restarted.snapshot().player.positionSeconds).toBe(10)
+      expect(restarted.snapshot().player.status).toBe('paused')
+      await command('play')
+      expect(nextDriver.calls.find((call) => call.operation === 'seek')?.value).toBe(10)
+      expect(restarted.snapshot().player.positionSeconds).toBe(10)
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('keeps the saved position when a resume attempt fails', async () => {
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    await f.coordinator.control(f.admin.context, 'seek', { ...f.playback(), positionSeconds: 42 })
+    await f.coordinator.close()
+    const nextDriver = new FakeDriver()
+    const restarted = new Coordinator(f.store, f.catalog, nextDriver, f.auth)
+    const command = (command: string, body: Record<string, unknown> = {}) => restarted.control(f.admin.context, command as never, {
+      requestId: randomUUID(),
+      serverInstanceId: restarted.serverInstanceId,
+      expectedRevision: restarted.snapshot().queue.revision,
+      targetPlaybackId: restarted.snapshot().player.playbackId,
+      ...body
+    })
+    try {
+      await restarted.initialize()
+      nextDriver.failLoad = true
+      await expect(command('play')).rejects.toMatchObject({ code: 'PLAYBACK_FAILED' })
+      // The interrupted position survives a failed resume, so a later retry still resumes there.
+      expect(restarted.snapshot().player.positionSeconds).toBe(42)
+      nextDriver.failLoad = false
+      await command('play')
+      expect(nextDriver.calls.find((call) => call.operation === 'seek')?.value).toBe(42)
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('rewinds a restored entry without history without touching the driver', async () => {
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    await f.coordinator.control(f.admin.context, 'seek', { ...f.playback(), positionSeconds: 42 })
+    await f.coordinator.close()
+    const nextDriver = new FakeDriver()
+    const restarted = new Coordinator(f.store, f.catalog, nextDriver, f.auth)
+    const command = (command: string, body: Record<string, unknown> = {}) => restarted.control(f.admin.context, command as never, {
+      requestId: randomUUID(),
+      serverInstanceId: restarted.serverInstanceId,
+      expectedRevision: restarted.snapshot().queue.revision,
+      targetPlaybackId: restarted.snapshot().player.playbackId,
+      ...body
+    })
+    try {
+      await restarted.initialize()
+      await command('previous')
+      expect(nextDriver.calls.some((call) => call.operation === 'seek')).toBe(false)
+      expect(restarted.snapshot().player.positionSeconds).toBe(0)
+      expect(restarted.snapshot().player.status).toBe('paused')
     } finally {
       await restarted.close()
     }
