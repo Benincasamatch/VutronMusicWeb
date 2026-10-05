@@ -4,7 +4,7 @@
 
 外部依赖来自 [npm 官方仓库](https://registry.npmjs.org/)。直接依赖版本元数据已查询；锁文件由 npm 实际生成，已核查外部包的下载来源和 integrity 字段。安装时没有运行生命周期脚本。
 
-类型检查、自动测试和生产构建均已通过；运行时依赖审计已处置（`npm audit --omit=dev` 为 0 漏洞），开发工具链仍有少量公告待处理。完整执行结果和已知限制见 [验证记录](verification.md)。版本固定、来源正确或测试通过，都不代表不存在依赖漏洞。
+类型检查、自动测试和生产构建均已通过；依赖审计已处置（`npm audit`，含开发依赖，为 0 漏洞）。完整执行结果和已知限制见 [验证记录](verification.md)。版本固定、来源正确或测试通过，都不代表不存在依赖漏洞。
 
 环境要求：Node.js **24+**，npm **11+**；本次使用 24.16.0 / 11.13.0。SQLite 使用 Node 自带的 `node:sqlite`，不需要安装原生 SQLite npm 插件。Linux mpv 是单独的系统依赖，没有任何 npm 脚本会安装 mpv、创建 OS 用户或配置声卡。
 
@@ -22,19 +22,19 @@
 | zod | 3.25.76 | 共享协议和请求 / 响应校验 |
 | vue | 3.5.22 | 网页遥控界面 |
 | pinia | 3.0.3 | 前端状态 |
-| vite | 7.3.1 | 前端开发和打包 |
+| vite | 7.3.6 | 前端开发和打包 |
 | @vitejs/plugin-vue | 6.0.1 | Vue 单文件组件编译 |
 | @types/node | 24.10.1 | Node 24 类型 |
 | @types/ws | 8.18.1 | WebSocket 类型 |
 | typescript | 5.9.3 | 类型检查 |
 | tsx | 4.20.5 | 服务端开发加载器 |
 | tsup | 8.5.0 | 服务端 / 共享包打包 |
-| vitest | 4.0.18 | 单元和集成测试 |
+| vitest | 4.1.11 | 单元和集成测试 |
 | vue-tsc | 3.2.4 | Vue 类型检查 |
 
 后端使用自身的有界 `RateLimiter`，不依赖最初建议但未采用的 `@fastify/rate-limit`。
 
-根级 `overrides` 将工具链中的 Vite 统一为 7.3.1，避免 Vitest 的传递依赖和网页 workspace 分别安装不同 Vite，造成插件类型不兼容。没有关闭严格类型检查来掩盖该问题。现有代码使用 Zod 3 API，不应直接替换成 Zod 4。
+根级 `overrides` 将工具链中的 Vite 统一为 7.3.6，避免 Vitest 的传递依赖和网页 workspace 分别安装不同 Vite，造成插件类型不兼容。没有关闭严格类型检查来掩盖该问题。现有代码使用 Zod 3 API，不应直接替换成 Zod 4。
 
 `@fastify/static` 从 8.3.0 升到 10.1.5：插件自身的兼容表写明 `>=8.x` 对应 Fastify `^5.x`，所以仍属 Fastify 5 线。v10 把 `setHeaders` 的回调参数从原始 ServerResponse 改成 Fastify Reply（`fn(reply, path, stat)`），`apps/server/src/app.ts` 已改用 `reply.header(...)`，并由 `static-auth.test.ts` 断言该响应头确实生效——这是跨大版本升级中唯一需要改代码的地方。
 
@@ -42,9 +42,11 @@
 
 - `.npmrc` 指定官方 registry、精确保存版本、严格检查运行时、禁用安装脚本和自动 audit / funding 请求。
 - 安装前检查用户、环境及 scoped npm 配置，不要因为官方源失败就自动切换镜像或 Git 来源。
-- 当前锁文件包含 289 个外部包记录，均为 HTTPS 官方 registry 来源且有 integrity；其中包含跨平台可选包，不等于当前平台实际安装包数。（升级 `@fastify/static` 后传递依赖减少，记录数由 301 降为 289。）
+- 当前锁文件包含 307 个外部包记录，均为 HTTPS 官方 registry 来源且有 integrity；其中包含跨平台可选包，不等于当前平台实际安装包数。（处置运行时高危项后为 289；处置开发工具链公告时删除锁文件重新解析，传递依赖随之在各自声明范围内上浮，记录数为 307。）
 - 修改依赖后应重新核查 lockfile，不手写锁文件、不复制原桌面项目的锁文件，不复制 Windows 的 node_modules 到 Linux。
-- 当前安装器报告 source-map beta 与 glob 的弃用/安全提示。运行时依赖审计已处置：`npm audit --omit=dev` 现为 0 漏洞——此前命中的 3 个 high 已按上表版本升级（fastify 5.12.5、@fastify/static 10.1.5、ws 8.22.0），锁文件随之重新生成并核查来源与 integrity。开发工具链（vite / vitest / esbuild）仍有少量公告，均不进入运行时产物，尚未处置；没有运行 `npm audit fix --force` 或静默改动固定版本。
+- 当前安装器报告 source-map beta 与 glob 的弃用/安全提示。依赖审计已全部处置：`npm audit`（含开发依赖）现为 0 漏洞。运行时此前命中的 3 个 high 已按上表版本升级（fastify 5.12.5、@fastify/static 10.1.5、ws 8.22.0）；开发工具链通过 vite 7.3.6、vitest 4.1.11 清除，两者仍在各自大版本内，且不进入运行时产物。
+- 曾尝试用根级 `overrides` 强制 esbuild 版本来消除一条低危公告，但该覆盖越过 `tsx` 声明的 `~0.25.0` 范围，使其 esbuild 被标为 invalid。已回退该覆盖并删除锁文件重新解析：`vite` 自行取到 esbuild 0.28.2（在其 `^0.27.0 || ^0.28.0` 范围内），`tsx` / `tsup` 保持 0.25.12，全树 0 个 invalid 条目。重新解析同时让 68 个传递依赖在各自声明范围内上浮（如 `rollup` 4.64.0、`pino` 10.4.0、`@vue/compiler-*` 3.5.43）；4 处大版本跃迁中 `entities` 7 / `es-module-lexer` 2 / `std-env` 4 仅存在于开发链，`real-require` 1 由 pino 10.4.0 自身声明，均未越过父包范围。
+- 没有运行 `npm audit fix --force` 或静默改动固定版本；`npm ci --dry-run` 可从当前锁文件精确复现。
 
 ## 可重复安装与检查
 

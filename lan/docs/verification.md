@@ -9,11 +9,12 @@
 | 检查 | 结果 |
 | --- | --- |
 | 直接依赖元数据 | 固定版本可在 npm 官方仓库查到，下载地址及完整性字段存在；不是漏洞安全证明 |
-| 锁文件 | 由 npm 实际生成；当前 301 个外部包记录的 resolved 均为 HTTPS 的 registry.npmjs.org，均有 integrity；包含其他平台的可选依赖 |
+| 锁文件 | 由 npm 实际生成；当前 307 个外部包记录的 resolved 均为 HTTPS 的 registry.npmjs.org，均有 integrity；包含其他平台的可选依赖 |
 | 安装 | `npm ci --ignore-scripts --no-audit --no-fund` 成功，未启用安装生命周期脚本 |
 | 类型检查 | `npm run typecheck` 成功：server、web/Vite 配置、shared 均通过 |
 | 生产构建 | `npm run build` 成功：shared dts、server dist（index.js / admin.js）、web dist |
 | 自动测试 | `npm test` 成功：15 个测试文件通过，138 项通过，2 项按平台跳过，共 140 项 |
+| 依赖审计 | `npm audit`（含开发依赖）0 漏洞；`npm ci --dry-run` 可从当前锁文件精确复现 |
 
 以上测试使用内存 / 临时 SQLite、临时文件、HTTP 注入、模拟播放器及 WebSocket 替身，不产生真实声音，也不创建实际部署账号。
 
@@ -37,7 +38,7 @@
 
 1. **客户端请求饱和会误停播放器和实时同步。** 外部请求和内部生命周期任务现使用独立、有界的准入配额，同时保持同一 FIFO 执行顺序。只合并相邻的进度采样；心跳和进度广播最多各有一个待执行任务。真实内部错误仍停止服务，而不是被当成普通限流忽略。
 2. **Windows 路径别名被错误识别成符号链接。** 检查真实祖先组件中的 symlink / junction，而不是直接比较 realpath 和字符串路径；保留加载时的目录约束和文件身份校验。
-3. **Vite 存在两个版本，导致插件类型不兼容。** 用根级 overrides 统一到已经选定的 7.3.1，没有通过类型断言或关闭严格检查掩盖错误。
+3. **Vite 存在两个版本，导致插件类型不兼容。** 用根级 overrides 统一到已经选定的 7.3.6，没有通过类型断言或关闭严格检查掩盖错误。
 4. **Fastify 路由配置弃用警告。** `maxParamLength` 改为通过 `routerOptions` 传递。
 5. **`npm start` / systemd / `npm run admin` 全部起不来（发布阻断项）。** tsup 的 `removeNodeProtocol` 默认把 `node:sqlite` 改写成 `sqlite`，构建产物运行时报 `ERR_MODULE_NOT_FOUND`；开发模式走 tsx 掩盖了它。已在 `apps/server/tsup.config.ts` 设 `removeNodeProtocol: false`，并实测 `dist/index.js` 能启动、`dist/admin.js` 能进入自身校验。
 6. **mpv 崩溃后不可恢复且零日志。** 驱动永久 `broken`、丢弃子进程输出，只有重启能救。现记录失败原因（含脱敏后的 mpv 输出尾部），并允许下一次 `play` 重建驱动一次，成功则广播 `player.recovered`，失败保持显式错误态。
@@ -45,6 +46,7 @@
 8. **崩溃后需人工清锁、孤儿 mpv 继续出声。** 现仅在锁记录的属主**确已消失**时接管锁，并按 uid 与私有 socket 目录回收残留 mpv；属主存活 / 记录不可读 / PID 被重用一律 fail closed。systemd 示例改为 `Restart=on-failure`。
 9. **启动失败只有一句通用提示。** 新增 `StartupError` 标记可安全打印的消息（无文件名 / SQL / 连接细节），入口原样输出；锁、配置、数据目录等失败现在可区分。
 10. **新增必填字段会让旧数据库无法启动。** `player.warning` 使旧 checkpoint 行严格校验失败；读取时先补默认值再校验，并有回归测试。
+11. **依赖公告未处置。** 运行时 3 个 high 已按上表升级（fastify 5.12.5、@fastify/static 10.1.5、ws 8.22.0）；开发工具链升到 vite 7.3.6、vitest 4.1.11。曾用根级 override 强制 esbuild 版本，越过 `tsx` 的 `~0.25.0` 范围使其变为 invalid，已回退并删除锁文件重新解析，全树 0 个 invalid。`npm audit`（含开发依赖）现为 0 漏洞。
 
 新增回归覆盖：mpv 失败原因与脱敏、驱动重建与 `player.recovered`、设备回退告警、过期锁接管与存活锁拒绝、孤儿 mpv 匹配、旧 checkpoint 读取。
 
@@ -64,7 +66,6 @@
 
 ## 尚未验证
 
-- npm 漏洞审计的处置：`npm audit --omit=dev` 报告 3 个 high 级运行时依赖（fastify、@fastify/static、ws），修复版本均超出当前锁定范围、需要破坏性升级；尚未完成影响评估，不能声称依赖无已知风险。没有运行 `npm audit fix` 或静默升级依赖。
 - 真实浏览器布局、网络 WebSocket 握手、反向代理与 HTTPS 的可重复验收脚本（运营者已实测，但未随仓库提供）。
 - 本机交互式管理员初始化、真实服务启动、systemd 安装与启动的可重复验收脚本。
 - Linux mpv 选项和设备适配、USB / 3.5mm 出声、设备拔插及连续播放稳定性。
@@ -77,4 +78,4 @@
 
 当前重启仅保留待播队列和音量 / 静音设置，播放器恢复为空闲，**不保留中断的当前曲目与播放位置**。原计划的暂停恢复尚未实现，不能把当前行为标记成已完成该项。
 
-下一步：在 Linux 上复验本轮改动（mpv 自愈、设备告警、锁接管与孤儿回收——现有 Linux 结论基于修复前的提交），再补 USB 声卡、长时间运行与依赖审计处置。不要因为单元测试通过就直接对外部署。
+下一步：在 Linux 上复验本轮改动（mpv 自愈、设备告警、锁接管与孤儿回收——现有 Linux 结论基于修复前的提交），再补 USB 声卡与长时间运行。不要因为单元测试通过就直接对外部署。
