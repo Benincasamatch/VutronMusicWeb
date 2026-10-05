@@ -7,7 +7,7 @@
 ## 当前验证状态
 
 - 第一版共享协议、后端、前端及测试已编写，新增内容与原项目隔离。
-- **依赖已安装，锁文件已核查；类型检查通过；14 个测试文件通过，122 项测试通过、2 项按平台跳过。** 安装生命周期脚本一直保持禁用。
+- **依赖已安装，锁文件已核查；类型检查通过；15 个测试文件通过，138 项测试通过、2 项按平台跳过。** 安装生命周期脚本一直保持禁用。
 - 生产构建和漏洞审计尚未取得运行结果；未启动真实服务、创建部署账号、部署或验证 Linux 声音。不能视为完整交付。
 - 实际结果、修复内容、平台跳过项及剩余限制见 [验证记录](docs/verification.md)。固定版本与安装方法见 [依赖清单](docs/dependencies.md)。
 - 验证环境为 Windows、Node 24.16.0、npm 11.13.0；运行目标为 Node **24+** / npm **11+**。真实音频仍需 Linux，Windows 仅支持显式开发模拟。
@@ -133,6 +133,8 @@ npm run dev:web
 
 打开 `http://localhost:5174`。Vite 只监听本机，端口占用时直接失败而不是自动换端口；它把 `/api` HTTP 与 WebSocket 转发到 `127.0.0.1:41840`，保留原 Host / Origin。不得通过直接访问 `127.0.0.1:41840` 绕开此规则。修改后端端口 / IPv6 绑定时，必须同步审核 `apps/web/vite.config.ts` 中的 proxy target。
 
+注意：`npm run dev:web -- --port 5199` 不生效——npm 会把 `--port` 当成自己的配置吞掉（并打印 `Unknown cli config`），Vite 仍监听 5174。要换端口请直接改 `apps/web/vite.config.ts`，或绕过 npm 调用 `npx vite --port 5199`。
+
 浏览器访问 `127.0.0.1:5174` 与 `localhost:5174` 不是同一 origin；不能混用地址后再关闭 Origin 检查。开发服务器没有对其他 LAN 设备开放的配置。生产静态页面也不会在开发模式下由后端提供。
 
 ## Linux 原生生产运行（示例未部署）
@@ -168,6 +170,8 @@ npm start
 4. 不把其他文件目录挂到静态路由。后端 `trustProxy=false`，不能依赖伪造的 X-Forwarded-* 改 Host 或识别登录者。
 
 例如使用 nginx 时，Host 应保留 `$http_host` 而非丢失非默认端口；Origin 应保留 `$http_origin`。具体 TLS、监听网卡、升级映射和日志配置需由运营者审核，不能直接把开发端口改成全网卡监听来替代。
+
+使用 Caddy 时不要写 `header_up Host {http.request.host}`：它会丢掉非默认端口，使后端按 Host 校验返回 403 `ORIGIN_REJECTED`（连 `GET /` 都 403，看起来像整站故障）；应使用 `{http.request.hostport}`，或干脆不写（Caddy 默认保留原始 Host）。排障提示：WebSocket 握手必须走 HTTP/1.1；用 `curl` 排障时若默认协商到 HTTP/2 再发升级头会得到 404，浏览器不受此影响。
 
 当前登录限流按真实 TCP 对端 IP，代理后多个用户会合并为 loopback 的每分钟 10 次登录额度；一般请求按已认证会话 120 次 / 分钟，修改 30 次 / 分钟。不要简单开启任意 `trustProxy` 来绕开登录额度。
 
