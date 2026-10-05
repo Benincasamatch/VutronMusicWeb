@@ -87,6 +87,16 @@ describe('production static files never replace the authenticated API', () => {
     }
   })
 
+  it('answers a malformed percent encoding with the application envelope', async () => {
+    const response = await service!.app.inject({ method: 'GET', url: '/api/%ZZ', headers })
+    expect(response.statusCode).toBe(400)
+    expect(response.json().error.code).toBe('VALIDATION_ERROR')
+    // The framework message quotes the raw path, so it must never be forwarded.
+    expect(response.json().error.message).not.toContain('%ZZ')
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.headers['x-content-type-options']).toBe('nosniff')
+  })
+
   it('does not publish dotfiles, parent-directory files or a private data route', async () => {
     for (const url of ['/.env', '/%2e%2e/outside.txt', '/data/lan.sqlite']) {
       const response = await service!.app.inject({ method: 'GET', url, headers })

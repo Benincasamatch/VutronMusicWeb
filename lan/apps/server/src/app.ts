@@ -109,7 +109,27 @@ export async function createApp(dependencies: AppDependencies) {
     requestTimeout: 20000,
     connectionTimeout: 10000,
     keepAliveTimeout: 5000,
-    routerOptions: { maxParamLength: 128 }
+    routerOptions: { maxParamLength: 128 },
+    // A malformed URL fails inside the router, before any hook and before the ordinary error handler,
+    // so this is the only place that can answer it with the application's own envelope. It also runs
+    // before onRequest, which means the headers that hook sets have to be applied here too, and the
+    // framework message must not be echoed because it quotes the raw requested path.
+    frameworkErrors: (error, _request, reply) => {
+      // Reuse the application's own classification rather than passing a raw framework number on.
+      const status = Number((error as { statusCode?: number }).statusCode)
+      const safe = status === 404 ? new AppError('NOT_FOUND')
+        : status >= 400 && status < 500 ? new AppError('VALIDATION_ERROR')
+        : new AppError('INTERNAL_ERROR')
+      // This runs before any hook, so the headers that hook would have set are written here, and the
+      // body goes out through the raw socket because the typed reply carries no route schema yet.
+      const body = JSON.stringify(ErrorResponseSchema.parse({ error: { code: safe.code, message: 'Invalid request' } }))
+      reply.raw.statusCode = safe.statusCode
+      reply.raw.setHeader('Content-Type', 'application/json; charset=utf-8')
+      reply.raw.setHeader('Cache-Control', 'no-store')
+      reply.raw.setHeader('X-Content-Type-Options', 'nosniff')
+      reply.raw.setHeader('Referrer-Policy', 'no-referrer')
+      reply.raw.end(body)
+    }
   })
 
   const principal = (request: FastifyRequest): Principal => {
