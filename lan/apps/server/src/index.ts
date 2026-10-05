@@ -49,7 +49,13 @@ async function main(): Promise<void> {
     if (!signalRequested) {
       const driver = config.simulation ? new SimulationDriver() : new MpvDriver(config.mpvPath, config.audioDevice)
       service = await createApp({ config, store: opened.store, catalog, driver })
-      if (!signalRequested) await service.app.listen({ host: config.host, port: config.port })
+      if (!signalRequested) {
+        await service.app.listen({ host: config.host, port: config.port }).catch((error: NodeJS.ErrnoException) => {
+          throw new StartupError(error.code === 'EADDRINUSE'
+            ? `PORT ${config.port} is already in use on ${config.host}; stop the other instance first`
+            : `The service could not listen on ${config.host}:${config.port} (${error.code ?? 'unknown error'})`)
+        })
+      }
     }
     starting = false
     if (signalRequested) await stop()
