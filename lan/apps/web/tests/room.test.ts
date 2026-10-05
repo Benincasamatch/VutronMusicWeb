@@ -4,6 +4,7 @@ import type { MutationResponse, SessionResponse, TrackListResponse } from '@lan/
 import { ApiError } from '../src/api/client'
 import type { ApiClient } from '../src/api/client'
 import type { EventHandlers } from '../src/api/events'
+import type { EnvironmentEvents } from '../src/api/lifecycle'
 import { createRoomStore } from '../src/stores/room'
 import { NOW, deferred, entry, instanceA, instanceB, playing, session, snapshot, track, uuid } from './fixtures'
 
@@ -28,6 +29,7 @@ function harness(initial = snapshot(), identity = session()) {
     updateRole: vi.fn<ApiClient['updateRole']>(async (id, input) => ({ requestId: input.requestId, user: { ...identity.user, id, role: input.role } }))
   }
   const sockets: Array<{ handlers: EventHandlers, close: ReturnType<typeof vi.fn> }> = []
+  const environment: EnvironmentEvents[] = []
   let id = 100
   const store = createRoomStore({
     api,
@@ -35,6 +37,10 @@ function harness(initial = snapshot(), identity = session()) {
       const socket = { handlers, close: vi.fn() }
       sockets.push(socket)
       return socket
+    },
+    watchEnvironment: (events) => {
+      environment.push(events)
+      return () => { environment.splice(environment.indexOf(events), 1) }
     },
     requestId: () => uuid(++id),
     now: () => Date.now(),
@@ -51,7 +57,7 @@ function harness(initial = snapshot(), identity = session()) {
     emit()
     await settle()
   }
-  return { store, api, sockets, emit, connect }
+  return { store, api, sockets, environment, emit, connect }
 }
 
 beforeEach(() => {
@@ -337,5 +343,72 @@ describe('authoritative listening-room state', () => {
     expect(h.store.notice?.kind).toBe('info')
     expect(h.store.notice?.text).toContain('实体播放器已重新连接')
     expect(h.store.connected).toBe(true)
+  })
+})
+
+describe('half-open connections after the device sleeps', () => {
+  it('reconfirms session and state when the page returns after a long absence', async () => {
+    const h = harness()
+    await h.connect()
+    expect(h.api.me).toHaveBeenCalledTimes(1)
+    expect(h.environment).toHaveLength(1)
+    h.environment[0]!.visibility('hidden')
+    vi.setSystemTime(NOW + 60000)
+    h.environment[0]!.visibility('visible')
+    await settle()
+    expect(h.api.me).toHaveBeenCalledTimes(2)
+    expect(h.sockets).toHaveLength(2)
+    expect(h.store.connection).toBe('connecting')
+  })
+
+  it('leaves a brief tab switch alone', async () => {
+    const h = harness()
+    await h.connect()
+    h.environment[0]!.visibility('hidden')
+    vi.setSystemTime(NOW + 1000)
+    h.environment[0]!.visibility('visible')
+    await settle()
+    expect(h.api.me).toHaveBeenCalledTimes(1)
+    expect(h.sockets).toHaveLength(1)
+    expect(h.store.connected).toBe(true)
+  })
+
+  it('treats a lost network as disconnected and retries when it returns', async () => {
+    const h = harness()
+    await h.connect()
+    h.environment[0]!.offline()
+    expect(h.store.connected).toBe(false)
+    expect(h.sockets[0]!.close).toHaveBeenCalled()
+    h.environment[0]!.online()
+    await settle()
+    expect(h.api.me).toHaveBeenCalledTimes(2)
+    expect(h.sockets).toHaveLength(2)
+  })
+
+  it('drops a playing room that goes silent', async () => {
+    const h = harness(playing())
+    await h.connect()
+    expect(h.store.connected).toBe(true)
+    expect(h.store.snapshot?.player.status).toBe('playing')
+    await vi.advanceTimersByTimeAsync(12000)
+    expect(h.store.connected).toBe(false)
+    expect(h.sockets[0]!.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not mistake a quiet idle room for a dead one', async () => {
+    const h = harness()
+    await h.connect()
+    await vi.advanceTimersByTimeAsync(120000)
+    expect(h.store.connected).toBe(true)
+    expect(h.api.me).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops watching the page once the store is stopped', async () => {
+    const h = harness()
+    await h.connect()
+    h.store.stop()
+    expect(h.environment).toHaveLength(0)
+    h.store.stop()
+    expect(h.api.me).toHaveBeenCalledTimes(1)
   })
 })

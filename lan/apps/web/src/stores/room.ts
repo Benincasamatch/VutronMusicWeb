@@ -23,6 +23,8 @@ import { ApiError, createApiClient, createRequestId } from '../api/client'
 import type { ApiClient, PlayerIntent } from '../api/client'
 import { openEvents } from '../api/events'
 import type { EventConnection, OpenEvents } from '../api/events'
+import { watchEnvironment } from '../api/lifecycle'
+import type { WatchEnvironment } from '../api/lifecycle'
 import { errorMessage } from '../utils/errors'
 
 type ConnectionStatus = 'checking' | 'signed-out' | 'connecting' | 'connected' | 'reconnecting' | 'offline'
@@ -30,6 +32,7 @@ type Notice = { kind: 'error' | 'info' | 'success', text: string }
 export type RoomDependencies = {
   api: ApiClient
   openEvents: OpenEvents
+  watchEnvironment: WatchEnvironment
   requestId: () => string
   now: () => number
   monotonicNow: () => number
@@ -41,6 +44,13 @@ type MutationContext = {
   token: string
   signal: AbortSignal
 }
+
+// The server publishes a progress snapshot about once a second while a track plays, so this much
+// silence means the socket is dead rather than the room being quiet. An idle room sends nothing at
+// all, which is why the watchdog is only armed during playback.
+const PLAYBACK_SILENCE_MS = 12000
+// A page hidden for less than this is an ordinary tab switch; a device that slept is away far longer.
+const RESUME_GRACE_MS = 5000
 
 // Dependencies are injected for authored unit tests. There is no simulated browser player.
 export function createRoomStore(dependencies: RoomDependencies) {
@@ -75,6 +85,9 @@ export function createRoomStore(dependencies: RoomDependencies) {
     let snapshotTimer: ReturnType<typeof setTimeout> | undefined
     let expiryTimer: ReturnType<typeof setTimeout> | undefined
     let reconnectAttempt = 0
+    let livenessTimer: ReturnType<typeof setTimeout> | undefined
+    let hiddenSince: number | null = null
+    let unwatchEnvironment: (() => void) | undefined
     let catalogRequest = 0
     let userRequest = 0
 
@@ -86,8 +99,10 @@ export function createRoomStore(dependencies: RoomDependencies) {
       lifetime = new AbortController()
       clearTimeout(reconnectTimer)
       clearTimeout(snapshotTimer)
+      clearTimeout(livenessTimer)
       reconnectTimer = undefined
       snapshotTimer = undefined
+      livenessTimer = undefined
       const oldSocket = socket
       socket = null
       oldSocket?.close()
@@ -142,6 +157,43 @@ export function createRoomStore(dependencies: RoomDependencies) {
       reconnectAttempt += 1
       const delay = Math.round(base * (0.75 + dependencies.random() * 0.5))
       reconnectTimer = setTimeout(() => void synchronize(), delay)
+    }
+
+    // Silence only proves the socket is dead when the server would otherwise be talking.
+    function armLiveness(sourceGeneration: number) {
+      clearTimeout(livenessTimer)
+      livenessTimer = undefined
+      if (connection.value !== 'connected' || snapshot.value?.player.status !== 'playing') return
+      livenessTimer = setTimeout(() => {
+        livenessTimer = undefined
+        if (current(sourceGeneration) && connection.value === 'connected') retryConnection()
+      }, PLAYBACK_SILENCE_MS)
+    }
+
+    function handleVisibility(state: 'visible' | 'hidden') {
+      if (!running) return
+      if (state === 'hidden') {
+        hiddenSince = dependencies.now()
+        return
+      }
+      const away = hiddenSince === null ? 0 : dependencies.now() - hiddenSince
+      hiddenSince = null
+      if (away < RESUME_GRACE_MS) return
+      // The device may have outlived the socket. Reconfirm identity and state instead of trusting it.
+      reconnectAttempt = 0
+      void synchronize()
+    }
+
+    function handleOffline() {
+      if (!running || connection.value === 'signed-out') return
+      // Stop presenting state that can no longer be confirmed; retrying is the only honest option.
+      retryConnection()
+    }
+
+    function handleOnline() {
+      if (!running) return
+      reconnectAttempt = 0
+      void synchronize()
     }
 
     function setSnapshot(value: Snapshot) {
@@ -203,6 +255,8 @@ export function createRoomStore(dependencies: RoomDependencies) {
             connection.value = 'connected'
             void loadCatalog(search.value, catalogOffset.value)
           }
+          // Each accepted message is also a liveness proof.
+          armLiveness(sourceGeneration)
         },
         closed: (code) => {
           if (!current(sourceGeneration)) return
@@ -274,11 +328,19 @@ export function createRoomStore(dependencies: RoomDependencies) {
     function start() {
       if (running) return
       running = true
+      unwatchEnvironment = dependencies.watchEnvironment({
+        visibility: handleVisibility,
+        online: handleOnline,
+        offline: handleOffline
+      })
       void synchronize()
     }
 
     function stop() {
       running = false
+      unwatchEnvironment?.()
+      unwatchEnvironment = undefined
+      hiddenSince = null
       retire()
       clearProtected()
       connection.value = 'signed-out'
@@ -502,6 +564,7 @@ export function createRoomStore(dependencies: RoomDependencies) {
 export const useRoomStore = createRoomStore({
   api: createApiClient(),
   openEvents,
+  watchEnvironment,
   requestId: createRequestId,
   now: () => Date.now(),
   monotonicNow: () => performance.now(),

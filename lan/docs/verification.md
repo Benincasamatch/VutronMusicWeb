@@ -13,7 +13,7 @@
 | 安装 | `npm ci --ignore-scripts --no-audit --no-fund` 成功，未启用安装生命周期脚本 |
 | 类型检查 | `npm run typecheck` 成功：server、web/Vite 配置、shared 均通过 |
 | 生产构建 | `npm run build` 成功：shared dts、server dist（index.js / admin.js）、web dist |
-| 自动测试 | `npm test` 成功：15 个测试文件通过，138 项通过，2 项按平台跳过，共 140 项 |
+| 自动测试 | `npm test` 成功：15 个测试文件通过，144 项通过，2 项按平台跳过，共 146 项 |
 | 依赖审计 | `npm audit`（含开发依赖）0 漏洞；`npm ci --dry-run` 可从当前锁文件精确复现 |
 
 以上测试使用内存 / 临时 SQLite、临时文件、HTTP 注入、模拟播放器及 WebSocket 替身，不产生真实声音，也不创建实际部署账号。
@@ -47,8 +47,9 @@
 9. **启动失败只有一句通用提示。** 新增 `StartupError` 标记可安全打印的消息（无文件名 / SQL / 连接细节），入口原样输出；锁、配置、数据目录等失败现在可区分。
 10. **新增必填字段会让旧数据库无法启动。** `player.warning` 使旧 checkpoint 行严格校验失败；读取时先补默认值再校验，并有回归测试。
 11. **依赖公告未处置。** 运行时 3 个 high 已按上表升级（fastify 5.12.5、@fastify/static 10.1.5、ws 8.22.0）；开发工具链升到 vite 7.3.6、vitest 4.1.11。曾用根级 override 强制 esbuild 版本，越过 `tsx` 的 `~0.25.0` 范围使其变为 invalid，已回退并删除锁文件重新解析，全树 0 个 invalid。`npm audit`（含开发依赖）现为 0 漏洞。
+12. **手机锁屏后界面仍显示已连接。** 设备休眠会让 socket 半开：对端收不到关闭帧，页面一直保留最后一次状态。服务端每 30 秒 ping、60 秒终止无响应连接，但浏览器 JS 看不到控制帧；空闲房间本来就不广播任何快照，所以客户端也不能用“最后消息时间”判断存活。现改为：页面隐藏超过 5 秒后重新可见、或网络 online / offline 变化时重新确认会话与状态；静默看门狗只在播放时启用（播放时服务端约每秒推送一次进度，静默 12 秒即判定 socket 已死），空闲房间不会误报。
 
-新增回归覆盖：mpv 失败原因与脱敏、驱动重建与 `player.recovered`、设备回退告警、过期锁接管与存活锁拒绝、孤儿 mpv 匹配、旧 checkpoint 读取。
+新增回归覆盖：mpv 失败原因与脱敏、驱动重建与 `player.recovered`、设备回退告警、过期锁接管与存活锁拒绝、孤儿 mpv 匹配、旧 checkpoint 读取、页面恢复 / 网络变化重校验与播放期静默看门狗。
 
 相关测试：
 
