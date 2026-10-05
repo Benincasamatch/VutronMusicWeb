@@ -360,7 +360,7 @@ export class Coordinator {
 
   private async command(command: PlayerCommandName, body: PlayerInput): Promise<void> {
     switch (command) {
-      case 'play':
+      case 'play': {
         if (this.player.status === 'playing') return
         // A paused entry the driver still holds is a plain unpause. A restored entry has nothing
         // loaded yet, so it falls through to a load that resumes at the saved position.
@@ -370,16 +370,30 @@ export class Coordinator {
           return
         }
         // A dead mpv is the one failure a retry can fix: rebuild it once, then resume.
+        let repaired = false
         if (this.player.status === 'error' && this.player.error?.code === 'PLAYER_UNAVAILABLE') {
           await this.rebuildDriver()
+          repaired = true
         }
-        if (this.player.current) await this.load(this.player.current, this.resumeAt ?? 0)
-        else {
-          const entry = this.queue.shift()
-          if (!entry) return fail('NOT_FOUND')
+        if (this.player.current) {
+          await this.load(this.player.current, this.resumeAt ?? 0)
+          return
+        }
+        const entry = this.queue.shift()
+        if (entry) {
           await this.load(entry)
+          return
         }
-        return
+        // A rebuild that already succeeded has changed the player. Reporting "nothing to play"
+        // without publishing would leave that repair in memory only: the durable state would still
+        // say the player is broken, and the next restart would bring the error straight back.
+        if (repaired) {
+          this.increment('revision')
+          this.persist()
+          this.publish()
+        }
+        return fail('NOT_FOUND')
+      }
       case 'pause':
         if (!this.player.current || this.player.status === 'paused') return
         if (this.player.status !== 'playing') return fail('PLAYBACK_CONFLICT')

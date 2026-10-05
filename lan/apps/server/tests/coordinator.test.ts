@@ -233,6 +233,32 @@ describe('authoritative shared control', () => {
     expect(frames.some((frame) => frame.type === 'player.recovered')).toBe(true)
   })
 
+  it('publishes a repaired player even when there is nothing left to play', async () => {
+    const frames: Array<{ type: string }> = []
+    f.coordinator.subscribe((event) => frames.push(event))
+    await f.enqueue()
+    await f.coordinator.control(f.admin.context, 'play', f.playback())
+    // Let the only entry finish, so the queue is empty and the player is idle.
+    f.driver.emit({ type: 'ended', playbackId: f.coordinator.snapshot().player.playbackId!, reason: 'eof' })
+    await f.coordinator.serial(() => undefined)
+    expect(f.coordinator.snapshot().player.current).toBeNull()
+    expect(f.coordinator.snapshot().player.status).toBe('idle')
+    // The player then dies while nothing is queued.
+    f.driver.emit({ type: 'unavailable', playbackId: null })
+    await f.coordinator.serial(() => undefined)
+    expect(f.coordinator.snapshot().player.status).toBe('error')
+    const revision = f.coordinator.snapshot().queue.revision
+    frames.length = 0
+    await expect(f.coordinator.control(f.admin.context, 'play', f.playback())).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    const after = f.coordinator.snapshot()
+    expect(after.player.status).toBe('idle')
+    expect(after.player.error).toBeNull()
+    // The repair is published and durable, not just an in-memory change behind an error.
+    expect(after.queue.revision).toBe(revision + 1)
+    expect(frames.some((frame) => frame.type === 'snapshot')).toBe(true)
+    expect(f.store.checkpoint()?.status).toBe('idle')
+  })
+
   it('keeps the failure explicit when a rebuild attempt fails', async () => {
     await f.enqueue()
     await f.coordinator.control(f.admin.context, 'play', f.playback())
