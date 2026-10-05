@@ -163,4 +163,51 @@ describe('service lock recovery', () => {
       await rm(temporary, { recursive: true, force: true })
     }
   })
+
+  it('records itself as the new owner so a second start is refused', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
+    const data = join(temporary, 'data')
+    try {
+      await mkdir(data, { recursive: true })
+      const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']).pid ?? 0
+      await writeFile(join(data, 'service.lock'), String(dead), { mode: 0o600 })
+      const opened = await openStore(data)
+      try {
+        // The takeover has to be complete, not just successful: the directory is ours now.
+        await expect(openStore(data)).rejects.toThrow(/locked by a running service/)
+      } finally {
+        await opened.close()
+      }
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  })
+
+  it('never trusts a lock that is not a plain file', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
+    const data = join(temporary, 'data')
+    try {
+      await mkdir(data, { recursive: true })
+      await mkdir(join(data, 'service.lock'))
+      await expect(openStore(data)).rejects.toThrow(/unreadable owner/)
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('never follows a symlinked lock file', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
+    const data = join(temporary, 'data')
+    try {
+      await mkdir(data, { recursive: true })
+      // A dead owner's PID behind a symlink must not be read as if it were a real lock.
+      const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']).pid ?? 0
+      const target = join(temporary, 'elsewhere')
+      await writeFile(target, String(dead), { mode: 0o600 })
+      await symlink(target, join(data, 'service.lock'))
+      await expect(openStore(data)).rejects.toThrow(/unreadable owner/)
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  })
 })

@@ -290,18 +290,39 @@ async function claimLock(lockPath: string): Promise<FileHandle> {
       throw new StartupError('DATA_DIR is locked and the lock file could not be inspected; inspect it manually')
     }
   }
-  const owner = Number((await readFile(lockPath, 'utf8').catch(() => '')).trim())
-  if (!Number.isInteger(owner) || owner <= 0) {
+  const first = await readLock(lockPath)
+  const owner = Number(first?.text.trim())
+  if (!first || !Number.isInteger(owner) || owner <= 0) {
     throw new StartupError('DATA_DIR is locked by an unreadable owner; inspect stale locks manually')
   }
   if (isRunning(owner)) {
     throw new StartupError(`DATA_DIR is locked by a running service (pid ${owner}); stop it before starting another instance`)
+  }
+  // Replacing the lock is a compare-and-swap, not a blind delete. Another process may have judged the
+  // same lock stale and already installed its own; deleting that one would leave two live owners of one
+  // data directory. Only the exact file we judged stale may be removed, and creating our own lock below
+  // stays the atomic gate if the swap still loses a race. A residual window remains between the check
+  // and the removal, which no amount of re-reading closes without an OS-level exclusive lock.
+  const again = await readLock(lockPath)
+  if (!again || again.text !== first.text || again.ino !== first.ino) {
+    throw new StartupError('DATA_DIR lock changed while it was being inspected; start again')
   }
   await rm(lockPath, { force: true })
   try {
     return await open(lockPath, 'wx', 0o600)
   } catch {
     throw new StartupError('DATA_DIR is locked and the stale lock could not be replaced; inspect stale locks manually')
+  }
+}
+
+// A lock that is not a plain file is never trusted, whatever it claims to contain.
+async function readLock(lockPath: string): Promise<{ text: string, ino: number } | null> {
+  try {
+    const info = await lstat(lockPath)
+    if (!info.isFile() || info.isSymbolicLink()) return null
+    return { text: await readFile(lockPath, 'utf8'), ino: Number(info.ino) }
+  } catch {
+    return null
   }
 }
 
