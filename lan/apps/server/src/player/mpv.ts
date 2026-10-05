@@ -288,7 +288,7 @@ export class MpvDriver implements PlayerDriver {
     }
   }
 
-  async load(path: string, playbackId: string): Promise<void> {
+  async load(path: string, playbackId: string, startAt = 0): Promise<void> {
     // Flush an explicit stop before assigning a new generation. Old end-file/observer IDs cannot advance it.
     await this.stop()
     this.playbackId = playbackId
@@ -297,6 +297,9 @@ export class MpvDriver implements PlayerDriver {
     this.deviceFallback = false
     this.position = null
     this.duration = null
+    // Start paused when a resume position is pending: loading first and seeking afterwards plays the
+    // opening of the track for as long as the seek takes to land, which is audible.
+    if (startAt > 0) await this.command(['set_property', 'pause', true])
     const loaded = new Promise<void>((resolve, reject) => {
       this.loading = {
         playbackId,
@@ -314,6 +317,7 @@ export class MpvDriver implements PlayerDriver {
         this.observations.set(id, { playbackId, property })
         await this.command(['observe_property', id, property])
       }
+      if (startAt > 0) await this.command(['seek', startAt, 'absolute+exact'])
       await this.command(['set_property', 'pause', false])
       this.suppressPause = false
     } catch (error) {

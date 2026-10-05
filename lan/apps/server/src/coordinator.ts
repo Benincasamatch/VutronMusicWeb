@@ -97,8 +97,9 @@ export class Coordinator {
     if (interrupted) {
       // The file is not loaded yet, so the first play must load it and then seek to this position.
       this.resumeAt = interrupted.positionSeconds
-      // It was the entry being played before the restart, so it belongs in history like any other.
-      this.currentStarted = true
+      // History holds entries that actually started playing, so an entry whose saved state never
+      // reached playback - a failed load, or a crash mid-load - must not become a Previous target.
+      this.currentStarted = interrupted.status === 'playing' || interrupted.status === 'paused'
     }
     this.snapshot()
     driver.setEventSink((event) => this.enqueueDriverEvent(event))
@@ -498,9 +499,9 @@ export class Coordinator {
     await this.driver.stop()
     await this.releaseLease()
     this.lease = await this.catalog.acquire(entry.track.id)
-    await this.driver.load(this.lease.path, this.player.playbackId!)
-    // The file is loaded, so a restored position is a seek rather than a replay of the whole track.
-    if (startAt > 0) await this.driver.seek(startAt)
+    // The driver starts the file paused and seeks before it plays, so a resumed entry never plays
+    // the opening of the track on its way to the saved position.
+    await this.driver.load(this.lease.path, this.player.playbackId!, startAt)
     this.resumeAt = null
     this.currentStarted = true
     this.loaded = true

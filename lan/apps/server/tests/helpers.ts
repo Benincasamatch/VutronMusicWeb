@@ -10,7 +10,7 @@ import { Store } from '../src/store.js'
 export class FakeDriver implements PlayerDriver {
   readonly simulation = true
   sink: (event: DriverEvent) => void = () => undefined
-  calls: Array<{ operation: string, value?: unknown }> = []
+  calls: Array<{ operation: string, value?: unknown, startAt?: number }> = []
   playbackId: string | null = null
   failLoad = false
   loadGate: Promise<void> | undefined
@@ -36,8 +36,8 @@ export class FakeDriver implements PlayerDriver {
   private alive(): void {
     if (this.closed || this.dead) throw new DriverError()
   }
-  async load(_path: string, playbackId: string): Promise<void> {
-    this.calls.push({ operation: 'load', value: playbackId })
+  async load(_path: string, playbackId: string, startAt = 0): Promise<void> {
+    this.calls.push({ operation: 'load', value: playbackId, startAt })
     this.alive()
     if (this.loadGate) await this.loadGate
     if (this.failLoad) throw new DriverError()

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WS_PROTOCOL } from '@lan/shared'
 import { eventSocketUrl, openEvents } from '../src/api/events'
+import { watchEnvironment } from '../src/api/lifecycle'
 
 class SocketStub {
   static instances: SocketStub[] = []
@@ -19,6 +20,30 @@ class SocketStub {
 afterEach(() => {
   vi.unstubAllGlobals()
   SocketStub.instances = []
+})
+
+describe('page lifecycle reporting', () => {
+  it('reports the current visibility as soon as it starts watching', () => {
+    const listeners = new Map<string, () => void>()
+    vi.stubGlobal('document', {
+      visibilityState: 'hidden',
+      addEventListener: (type: string, handler: () => void) => { listeners.set(type, handler) },
+      removeEventListener: () => undefined
+    })
+    vi.stubGlobal('window', {
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined
+    })
+    const seen: string[] = []
+    const stop = watchEnvironment({
+      visibility: (state) => seen.push(state),
+      online: () => seen.push('online'),
+      offline: () => seen.push('offline')
+    })
+    // Without this a page that loaded hidden never records when it went away.
+    expect(seen).toEqual(['hidden'])
+    stop()
+  })
 })
 
 describe('same-origin event connection', () => {

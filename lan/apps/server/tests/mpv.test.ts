@@ -181,6 +181,25 @@ describe('private mpv JSON IPC', () => {
     }
   })
 
+  it('resumes without playing the opening of the track first', async () => {
+    const f = ipcFixture()
+    try {
+      await f.driver.load('/private/first', randomUUID(), 42)
+      const commands = f.commands.map((entry) => entry.command)
+      const indexOf = (predicate: (command: unknown[]) => boolean) => commands.findIndex(predicate)
+      const paused = indexOf((command) => command[0] === 'set_property' && command[1] === 'pause' && command[2] === true)
+      const loaded = indexOf((command) => command[0] === 'loadfile')
+      const sought = indexOf((command) => command[0] === 'seek')
+      const started = indexOf((command) => command[0] === 'set_property' && command[1] === 'pause' && command[2] === false)
+      expect(paused).toBeGreaterThanOrEqual(0)
+      expect(loaded).toBeGreaterThan(paused)
+      expect(sought).toBeGreaterThan(loaded)
+      expect(started).toBeGreaterThan(sought)
+    } finally {
+      await f.driver.close()
+    }
+  })
+
   it('ignores drivers mpv was not asked to use, and never flags an automatic selection', async () => {
     const explicit = ipcFixture({ device: 'pulse/alsa_output.hifi' })
     const automatic = ipcFixture()

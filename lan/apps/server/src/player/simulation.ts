@@ -30,9 +30,9 @@ export class SimulationDriver implements PlayerDriver {
     await this.start()
   }
 
-  async load(_path: string, playbackId: string): Promise<void> {
+  async load(_path: string, playbackId: string, startAt = 0): Promise<void> {
     this.playbackId = playbackId
-    this.position = 0
+    this.position = startAt
     this.paused = false
   }
 

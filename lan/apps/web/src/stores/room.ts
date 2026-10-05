@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 import {
   LIMITS,
@@ -88,6 +88,7 @@ export function createRoomStore(dependencies: RoomDependencies) {
     let livenessTimer: ReturnType<typeof setTimeout> | undefined
     let hiddenSince: number | null = null
     let unwatchEnvironment: (() => void) | undefined
+    let catalogQuery = ''
     let catalogRequest = 0
     let userRequest = 0
 
@@ -124,6 +125,7 @@ export function createRoomStore(dependencies: RoomDependencies) {
       tracks.value = []
       totalTracks.value = 0
       catalogOffset.value = 0
+      catalogQuery = ''
       search.value = ''
       catalogError.value = null
       users.value = []
@@ -275,7 +277,11 @@ export function createRoomStore(dependencies: RoomDependencies) {
     async function synchronize(knownSession?: SessionResponse) {
       const sourceGeneration = retire()
       if (!running) return
-      connection.value = session.value ? 'reconnecting' : 'checking'
+      // Stay on the login screen while reconfirming an anonymous visitor. Flipping to "checking"
+      // would unmount the form and discard whatever the user had already typed into it, and there is
+      // no session state to protect in the meantime.
+      if (session.value) connection.value = 'reconnecting'
+      else if (connection.value !== 'signed-out') connection.value = 'checking'
       try {
         const verified = knownSession ?? await dependencies.api.me(lifetime.signal)
         if (!current(sourceGeneration)) return
@@ -399,6 +405,10 @@ export function createRoomStore(dependencies: RoomDependencies) {
 
     async function loadCatalog(query = search.value, offset = 0) {
       if (!connected.value || !session.value) return
+      // An offset belongs to the query it came from. Pairing a new query with the previous query's
+      // offset asks for a page that cannot exist and then reports "no results" for a query that has
+      // some, which is what a reconnect does when a search was interrupted by a dropped connection.
+      if (query !== catalogQuery) offset = 0
       const sourceGeneration = generation
       const request = ++catalogRequest
       search.value = query
@@ -410,6 +420,7 @@ export function createRoomStore(dependencies: RoomDependencies) {
         tracks.value = result.tracks
         totalTracks.value = result.total
         catalogOffset.value = result.offset
+        catalogQuery = query
       } catch (error) {
         if (!current(sourceGeneration)) return
         // A stale search can still report an invalid session, but cannot replace search results.
@@ -522,6 +533,11 @@ export function createRoomStore(dependencies: RoomDependencies) {
     function updateRole(userId: string, role: Role) {
       return manageUser(`role:${userId}`, (requestId, token, signal) => dependencies.api.updateRole(userId, { requestId, role }, token, signal))
     }
+
+    // Playback can also start from an HTTP mutation acknowledgement, where no socket message arrives
+    // to arm the watchdog. Re-arm whenever the player becomes active, whatever told us it did, so a
+    // half-open socket cannot leave a room looking like it is playing.
+    watch([connection, () => snapshot.value?.player.status], () => armLiveness(generation), { flush: 'sync' })
 
     return {
       session,

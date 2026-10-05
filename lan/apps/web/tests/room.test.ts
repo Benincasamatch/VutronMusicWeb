@@ -412,3 +412,57 @@ describe('half-open connections after the device sleeps', () => {
     expect(h.api.me).toHaveBeenCalledTimes(1)
   })
 })
+describe('an anonymous visitor returning after a long absence', () => {
+  it('keeps the login screen mounted while the session is reconfirmed', async () => {
+    const h = harness()
+    vi.mocked(h.api.me).mockRejectedValue(new ApiError('UNAUTHENTICATED'))
+    h.store.start()
+    await settle()
+    expect(h.store.connection).toBe('signed-out')
+    h.environment[0]!.visibility('hidden')
+    vi.setSystemTime(NOW + 60000)
+    h.environment[0]!.visibility('visible')
+    // Switching to "checking" here would unmount the form and lose a half-typed username.
+    expect(h.store.connection).toBe('signed-out')
+    await settle()
+    expect(h.store.connection).toBe('signed-out')
+    expect(h.api.me).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('liveness after an HTTP-only transition', () => {
+  it('arms the silence watchdog when playback starts without a socket message', async () => {
+    const h = harness()
+    await h.connect()
+    // The play acknowledgement reports playback over HTTP; no further socket message follows.
+    vi.mocked(h.api.command).mockResolvedValueOnce({ requestId: uuid(200), snapshot: playing({ eventSeq: 50 }) })
+    await h.store.command({ command: 'play' }, null)
+    await settle()
+    expect(h.store.snapshot?.player.status).toBe('playing')
+    expect(h.store.connected).toBe(true)
+    await vi.advanceTimersByTimeAsync(12000)
+    expect(h.store.connected).toBe(false)
+  })
+})
+
+describe('catalog pagination survives a reconnect', () => {
+  it('never pairs a new query with the previous query page offset', async () => {
+    const h = harness()
+    await h.connect()
+    vi.mocked(h.api.tracks).mockResolvedValueOnce({ tracks: [track], total: 500, offset: 100, limit: 50 })
+    await h.store.loadCatalog('', 100)
+    await settle()
+    expect(h.store.catalogOffset).toBe(100)
+    // A new query is submitted, but the connection drops before its response arrives.
+    const pending = deferred<TrackListResponse>()
+    vi.mocked(h.api.tracks).mockReturnValueOnce(pending.promise)
+    void h.store.loadCatalog('new', 0)
+    h.sockets[0]!.handlers.closed(1006)
+    await settle()
+    await vi.advanceTimersByTimeAsync(2000)
+    await settle()
+    h.emit(snapshot({ eventSeq: 40 }))
+    await settle()
+    expect(vi.mocked(h.api.tracks).mock.calls.at(-1)![0]).toMatchObject({ q: 'new', offset: 0 })
+  })
+})

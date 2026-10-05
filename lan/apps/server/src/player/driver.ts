@@ -13,7 +13,7 @@ export interface PlayerDriver {
   start: () => Promise<void>
   // Rebuild after an unrecoverable failure. A throw means the player is still unavailable.
   restart: () => Promise<void>
-  load: (path: string, playbackId: string) => Promise<void>
+  load: (path: string, playbackId: string, startAt?: number) => Promise<void>
   stop: () => Promise<void>
   pause: (paused: boolean) => Promise<void>
   seek: (positionSeconds: number) => Promise<void>

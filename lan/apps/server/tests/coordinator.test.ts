@@ -361,8 +361,8 @@ describe('authoritative shared control', () => {
       await command('play', {})
       expect(restarted.snapshot().player.status).toBe('playing')
       expect(nextDriver.calls.filter((call) => call.operation === 'load')).toHaveLength(1)
-      // Loaded once and then positioned, rather than played from the start.
-      expect(nextDriver.calls.find((call) => call.operation === 'seek')?.value).toBe(42)
+      // Loaded once, paused, positioned, then started: never played from the beginning first.
+      expect(nextDriver.calls.find((call) => call.operation === 'load')?.startAt).toBe(42)
       expect(restarted.snapshot().player.positionSeconds).toBe(42)
     } finally {
       await restarted.close()
@@ -391,7 +391,7 @@ describe('authoritative shared control', () => {
       expect(restarted.snapshot().player.positionSeconds).toBe(10)
       expect(restarted.snapshot().player.status).toBe('paused')
       await command('play')
-      expect(nextDriver.calls.find((call) => call.operation === 'seek')?.value).toBe(10)
+      expect(nextDriver.calls.find((call) => call.operation === 'load')?.startAt).toBe(10)
       expect(restarted.snapshot().player.positionSeconds).toBe(10)
     } finally {
       await restarted.close()
@@ -420,7 +420,37 @@ describe('authoritative shared control', () => {
       expect(restarted.snapshot().player.positionSeconds).toBe(42)
       nextDriver.failLoad = false
       await command('play')
-      expect(nextDriver.calls.find((call) => call.operation === 'seek')?.value).toBe(42)
+      expect(nextDriver.calls.find((call) => call.operation === 'load')?.startAt).toBe(42)
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('does not make a restored entry that never started into previous history', async () => {
+    await f.enqueue()
+    await f.enqueue()
+    f.driver.failLoad = true
+    await expect(f.coordinator.control(f.admin.context, 'play', f.playback())).rejects.toMatchObject({ code: 'PLAYBACK_FAILED' })
+    const failed = f.coordinator.snapshot().player.current!
+    await f.coordinator.close()
+    const nextDriver = new FakeDriver()
+    const restarted = new Coordinator(f.store, f.catalog, nextDriver, f.auth)
+    const command = (command: string) => restarted.control(f.admin.context, command as never, {
+      requestId: randomUUID(),
+      serverInstanceId: restarted.serverInstanceId,
+      expectedRevision: restarted.snapshot().queue.revision,
+      targetPlaybackId: restarted.snapshot().player.playbackId
+    })
+    try {
+      await restarted.initialize()
+      expect(restarted.snapshot().player.current?.entryId).toBe(failed.entryId)
+      await command('next')
+      const playing = restarted.snapshot().player.current!
+      expect(playing.entryId).not.toBe(failed.entryId)
+      // Previous must rewind what is playing, not select an entry that never produced audio.
+      await command('previous')
+      expect(restarted.snapshot().player.current?.entryId).toBe(playing.entryId)
+      expect(restarted.snapshot().player.positionSeconds).toBe(0)
     } finally {
       await restarted.close()
     }

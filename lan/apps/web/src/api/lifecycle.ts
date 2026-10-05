@@ -17,6 +17,9 @@ export const watchEnvironment: WatchEnvironment = (events) => {
   document.addEventListener('visibilitychange', onVisibility)
   window.addEventListener('online', onOnline)
   window.addEventListener('offline', onOffline)
+  // Report where the page already is. A page that loads while hidden would otherwise never record
+  // when it went away, so its first return would look like an ordinary tab switch and be skipped.
+  onVisibility()
   return () => {
     document.removeEventListener('visibilitychange', onVisibility)
     window.removeEventListener('online', onOnline)
