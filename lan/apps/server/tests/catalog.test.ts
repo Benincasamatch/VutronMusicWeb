@@ -42,6 +42,18 @@ describe('bounded controlled-file catalog', () => {
     expect(rescanned.list({ q: '', offset: 0, limit: 50 }).tracks[0]?.id).toBe(id)
   })
 
+  it.skipIf(process.platform !== 'linux')('skips an entry whose name is not valid UTF-8 instead of aborting', async () => {
+    await writeFile(join(music, 'song.mp3'), 'test audio placeholder bytes')
+    // Linux accepts this filename, but no UTF-8 round-trip can address it: opendir decodes the 0xFF
+    // byte to U+FFFD, so the reconstructed path does not exist.
+    await writeFile(Buffer.concat([Buffer.from(`${music}/`), Buffer.from([0xff]), Buffer.from('.txt')]), 'not audio')
+    const catalog = new Catalog(store, music)
+    await catalog.scan()
+    const result = catalog.list({ q: '', offset: 0, limit: 50 })
+    expect(result.total).toBe(1)
+    expect(result.tracks[0]?.title).toBe('song')
+  })
+
   it.skipIf(process.platform !== 'win32')('accepts Windows path casing aliases without treating them as symlinks', async () => {
     await writeFile(join(music, 'song.mp3'), 'bytes')
     const catalog = new Catalog(store, music.toUpperCase())

@@ -62,7 +62,14 @@ export class Catalog implements PlayableCatalog {
       for (const item of items) {
         if (item.isSymbolicLink()) continue
         const path = join(directory, item.name)
-        const info = await lstat(path, { bigint: true })
+        // A name that does not survive UTF-8 decoding, or an entry removed while the scan runs, fails
+        // here with ENOENT. Skipping just that entry keeps one odd filename from stopping the whole
+        // library and the service with it; any other failure still aborts the scan.
+        const info = await lstat(path, { bigint: true }).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return null
+          throw error
+        })
+        if (!info) continue
         if (info.isSymbolicLink()) continue
         if (info.isDirectory()) {
           if (depth < CATALOG_MAX_DEPTH) await walk(path, depth + 1)
