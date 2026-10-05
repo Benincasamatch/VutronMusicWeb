@@ -2,7 +2,7 @@ import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import cookie from '@fastify/cookie'
 import websocket from '@fastify/websocket'
 import staticFiles from '@fastify/static'
-import { lstat, realpath } from 'node:fs/promises'
+import { lstat, readdir, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import {
@@ -78,6 +78,20 @@ export function verifyWebSocketProtocols(header: string | string[] | undefined, 
   auth.checkCsrf(principal, csrf?.slice(WS_CSRF_PROTOCOL_PREFIX.length))
 }
 
+// Static serving resolves links below its root, so a link anywhere in the built assets can reach
+// outside the public directory. Walking the tree is cheap because the built assets are small.
+async function containsLink(root: string): Promise<boolean> {
+  const pending = [root]
+  while (pending.length) {
+    const directory = pending.pop()!
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) return true
+      if (entry.isDirectory()) pending.push(join(directory, entry.name))
+    }
+  }
+  return false
+}
+
 export async function createApp(dependencies: AppDependencies) {
   const { config, store, catalog, driver } = dependencies
   const now = dependencies.now ?? Date.now
@@ -151,15 +165,29 @@ export async function createApp(dependencies: AppDependencies) {
     const path = requestPath(request)
     if (!path.startsWith('/api/') && path !== '/api') return
     if (path !== API_PATHS.tracks) emptyQuery.parse(request.query)
-    if (['GET', 'HEAD'].includes(request.method) && request.body !== undefined) fail('VALIDATION_ERROR')
+    // Fastify dispatches GET and HEAD as bodyless methods, so it never populates request.body and
+    // the parsed body cannot prove absence. A declared length or a chunked encoding is what has to
+    // be rejected, and it is also what would otherwise slip past the configured body limit.
+    if (['GET', 'HEAD'].includes(request.method) &&
+      (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'] !== undefined)) {
+      fail('VALIDATION_ERROR')
+    }
   })
 
   app.setErrorHandler((error, request, reply) => {
     let safe: AppError
     if (error instanceof AppError) safe = error
-    else if (error instanceof z.ZodError || [400, 413, 415].includes(Number((error as { statusCode?: number }).statusCode))) {
+    else if (error instanceof z.ZodError) {
       safe = new AppError('VALIDATION_ERROR')
-    } else safe = new AppError('INTERNAL_ERROR')
+    } else {
+      // Static-file failures such as a denied dotfile, a failed precondition or an unsatisfiable
+      // range are ordinary client errors. Reporting them as 500 misleads clients and operators.
+      const status = Number((error as { statusCode?: number }).statusCode)
+      if (status === 404) safe = new AppError('NOT_FOUND')
+      else if (status === 403) safe = new AppError('FORBIDDEN')
+      else if (status >= 400 && status < 500) safe = new AppError('VALIDATION_ERROR')
+      else safe = new AppError('INTERNAL_ERROR')
+    }
     if (safe.code === 'RATE_LIMITED') reply.header('Retry-After', '60')
     const input = request.body && typeof request.body === 'object' ? (request.body as Record<string, unknown>).requestId : undefined
     const parsedId = IdSchema.safeParse(input)
@@ -267,12 +295,18 @@ export async function createApp(dependencies: AppDependencies) {
   if (config.environment === 'production') {
     const assets = await lstat(config.webDist).catch(() => null)
     const entry = await lstat(join(config.webDist, 'index.html')).catch(() => null)
-    if (!assets?.isDirectory() || assets.isSymbolicLink() || await realpath(config.webDist) !== config.webDist ||
-      !entry?.isFile() || entry.isSymbolicLink()) {
+    const usable = !!assets?.isDirectory() && !assets.isSymbolicLink() &&
+      await realpath(config.webDist) === config.webDist &&
+      !!entry?.isFile() && !entry.isSymbolicLink()
+    // Static serving follows links below the root, so one linked component inside the built assets
+    // would publish anything the service account can read. Refuse the whole tree instead of trusting
+    // every future rebuild to be link-free. This shares the cleanup path below so a refusal cannot
+    // leave the event hub or coordinator running.
+    if (!usable || await containsLink(config.webDist)) {
       hub.close()
       await coordinator.close()
       await app.close()
-      throw new Error('Production web assets are missing. Build the independent LAN web application first')
+      throw new Error('Production web assets are missing or contain a symlink. Build the independent LAN web application first')
     }
     await app.register(staticFiles, {
       root: config.webDist,

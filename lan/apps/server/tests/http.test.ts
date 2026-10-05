@@ -131,6 +131,19 @@ describe('exact HTTP contract and security boundary', () => {
     expect(unknown.headers['content-type']).toContain('application/json')
   })
 
+  it('rejects a GET that declares a body instead of trusting the unparsed one', async () => {
+    const declared = await service.app.inject({
+      method: 'GET',
+      url: '/api/state',
+      headers: { ...authHeaders(ordinary), 'content-type': 'application/json', 'content-length': '32' },
+      payload: JSON.stringify({ padding: 'x'.repeat(20) })
+    })
+    expect(declared.statusCode).toBe(400)
+    expect(declared.json().error.code).toBe('VALIDATION_ERROR')
+    const plain = await service.app.inject({ method: 'GET', url: '/api/state', headers: authHeaders(ordinary) })
+    expect(plain.statusCode).toBe(200)
+  })
+
   it('deduplicates queue requests at HTTP level without silently repairing revisions', async () => {
     const state = service.coordinator.snapshot()
     const payload = { requestId: randomUUID(), serverInstanceId: state.serverInstanceId, expectedRevision: 0, trackId: catalog.track.id }

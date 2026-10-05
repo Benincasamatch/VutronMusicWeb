@@ -47,6 +47,7 @@ export class MpvDriver implements PlayerDriver {
   private closing = false
   private ready = false
   private buffer = ''
+  private stderrBuffer = ''
   private failure: string | undefined
   private readonly outputTail: string[] = []
   private requestCounter = 0
@@ -218,12 +219,8 @@ export class MpvDriver implements PlayerDriver {
 
   private message(message: Record<string, unknown>): void {
     if (message.event === 'log-message' && typeof message.text === 'string') {
-      const text = message.text.trim()
-      if (text) {
-        this.outputTail.push(redact(text))
-        if (this.outputTail.length > 8) this.outputTail.shift()
-      }
-      this.noteAudioFallback(message.text)
+      // IPC messages are already framed, so this text is a whole line.
+      this.noteOutput(message.text.trim())
       return
     }
     if (typeof message.request_id === 'number') {
@@ -365,15 +362,30 @@ export class MpvDriver implements PlayerDriver {
     await this.command(['set_property', 'mute', muted])
   }
 
-  // Raw stderr still matters for messages mpv's own logging never sees, such as those written
-  // directly by linked libraries, so both sources feed the same bounded tail and the same check.
+  private noteOutput(line: string): void {
+    if (!line) return
+    this.outputTail.push(redact(line))
+    if (this.outputTail.length > 8) this.outputTail.shift()
+    this.noteAudioFallback(line)
+  }
+
+  // Raw stderr still matters for messages mpv's own logging never sees, such as those written by
+  // linked libraries. It arrives in arbitrary chunks, so lines are reassembled before redaction:
+  // redacting each chunk on its own would let the tail of a path, which no longer starts with a
+  // slash, reach the diagnostics and the log.
   private collectStderr(chunk: string): void {
-    for (const line of chunk.split('\n')) {
-      const text = line.trim()
-      if (!text) continue
-      this.outputTail.push(redact(text))
-      if (this.outputTail.length > 8) this.outputTail.shift()
-      this.noteAudioFallback(text)
+    this.stderrBuffer += chunk
+    if (this.stderrBuffer.length > 8192) {
+      // One line this long is pathological, and a fragment of it could start in the middle of a path.
+      this.stderrBuffer = ''
+      return
+    }
+    let newline = this.stderrBuffer.indexOf('\n')
+    while (newline >= 0) {
+      const line = this.stderrBuffer.slice(0, newline).trim()
+      this.stderrBuffer = this.stderrBuffer.slice(newline + 1)
+      this.noteOutput(line)
+      newline = this.stderrBuffer.indexOf('\n')
     }
   }
 
@@ -445,6 +457,7 @@ export class MpvDriver implements PlayerDriver {
     this.suppressPause = false
     this.deviceFallback = false
     this.outputTail.length = 0
+    this.stderrBuffer = ''
   }
 
   private async discardChild(): Promise<void> {

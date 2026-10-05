@@ -130,6 +130,17 @@ describe('private mpv JSON IPC', () => {
     await f.driver.close()
   })
 
+  it('never leaks a path that arrives split across stderr chunks', async () => {
+    const f = ipcFixture()
+    f.internals.collectStderr('[ao] Failed to open /srv/private/')
+    f.internals.collectStderr('confidential-recording.flac\n')
+    const internals = f.internals as unknown as { outputTail: string[] }
+    const joined = internals.outputTail.join('\n')
+    expect(joined).toContain('<path>')
+    expect(joined).not.toContain('confidential-recording')
+    await f.driver.close()
+  })
+
   it('keeps only a bounded tail of mpv output', async () => {
     const f = ipcFixture()
     const internals = f.internals as unknown as { outputTail: string[] }

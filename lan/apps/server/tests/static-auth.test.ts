@@ -1,6 +1,6 @@
 // Production static/auth integration uses temporary files, Fastify.inject
 // and an injected driver only. It does not listen, start mpv or execute built assets.
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -109,6 +109,35 @@ describe('production static files never replace the authenticated API', () => {
         catalog: new FakeCatalog(),
         driver: new FakeDriver()
       })).rejects.toThrow('Production web assets are missing')
+    } finally {
+      isolated.close()
+    }
+  })
+
+  it('reports a denied dotfile as forbidden rather than a server error', async () => {
+    const response = await service!.app.inject({ method: 'GET', url: '/.env', headers })
+    expect(response.statusCode).toBe(403)
+    expect(response.json().error.code).toBe('FORBIDDEN')
+    expect(response.body).not.toContain('DO_NOT_SERVE_')
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses production assets containing a symlink', async () => {
+    const webDist = join(directory, 'linked-build')
+    await mkdir(join(webDist, 'assets'), { recursive: true })
+    await writeFile(join(webDist, 'index.html'), '<!doctype html><title>Linked build</title>')
+    // Static serving follows this link, which would publish the private data directory.
+    await symlink(directory, join(webDist, 'assets', 'private'))
+    const isolated = memoryStore()
+    try {
+      await expect(createApp({
+        config: {
+          ...loadConfig({ NODE_ENV: 'production', PUBLIC_ORIGIN: origin, MUSIC_ROOT: './music' }),
+          webDist
+        },
+        store: isolated,
+        catalog: new FakeCatalog(),
+        driver: new FakeDriver()
+      })).rejects.toThrow('contain a symlink')
     } finally {
       isolated.close()
     }
