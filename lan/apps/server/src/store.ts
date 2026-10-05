@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, lstat, mkdir, open, realpath, unlink } from 'node:fs/promises'
+import { chmod, lstat, mkdir, open, readFile, realpath, rm, unlink, type FileHandle } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
@@ -12,7 +12,7 @@ import {
   type QueueEntry,
   type Role
 } from '@lan/shared'
-import { fail } from './errors.js'
+import { fail, StartupError } from './errors.js'
 
 export interface AccountRow extends PublicUser {
   password_hash: string
@@ -42,7 +42,7 @@ export class Store {
 
   private migrate(): void {
     const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version > 1) throw new Error('This database requires a newer application version')
+    if (version > 1) throw new StartupError('This database requires a newer application version')
     if (version === 1) return
     this.transaction(() => {
       this.db.exec(`
@@ -191,7 +191,10 @@ export class Store {
 
   checkpoint(): Player | null {
     const row = this.db.prepare('SELECT player_json FROM checkpoint WHERE singleton = 1').get()
-    return row ? PlayerSchema.parse(JSON.parse(String(row.player_json)) as unknown) : null
+    if (!row) return null
+    // A row written before a nullable field existed must stay readable; fill it before strict validation.
+    const stored = JSON.parse(String(row.player_json)) as Record<string, unknown>
+    return PlayerSchema.parse({ warning: null, ...stored })
   }
 
   saveState(waiting: QueueEntry[], player: Player): void {
@@ -218,27 +221,24 @@ export async function openStore(dataDir: string): Promise<OpenStore> {
   await mkdir(dataDir, { recursive: true, mode: 0o700 })
   const info = await lstat(dataDir)
   if (info.isSymbolicLink() || !info.isDirectory()) {
-    throw new Error('DATA_DIR must be a real directory without symlink ancestors')
+    throw new StartupError('DATA_DIR must be a real directory without symlink ancestors')
   }
   // Windows realpath expands casing and short names; inspect ancestors rather
   // than mistaking those legitimate aliases for symlinks or junctions.
   let ancestor = resolve(dataDir)
   while (true) {
     if ((await lstat(ancestor)).isSymbolicLink()) {
-      throw new Error('DATA_DIR must be a real directory without symlink ancestors')
+      throw new StartupError('DATA_DIR must be a real directory without symlink ancestors')
     }
     const parent = dirname(ancestor)
     if (parent === ancestor) break
     ancestor = parent
   }
   dataDir = await realpath(dataDir)
-  if (process.getuid && info.uid !== process.getuid()) throw new Error('DATA_DIR must belong to the service account')
+  if (process.getuid && info.uid !== process.getuid()) throw new StartupError('DATA_DIR must belong to the service account')
   await chmod(dataDir, 0o700)
   const lockPath = resolve(dataDir, 'service.lock')
-  // Deliberately fail closed on a stale lock. The operator must check that no owner is running.
-  const lock = await open(lockPath, 'wx', 0o600).catch(() => {
-    throw new Error('DATA_DIR is locked. Stop the service before bootstrap; inspect stale locks manually')
-  })
+  const lock = await claimLock(lockPath)
   let store: Store | undefined
   let database: DatabaseSync | undefined
   try {
@@ -251,7 +251,7 @@ export async function openStore(dataDir: string): Promise<OpenStore> {
       })
       if (existing && (!existing.isFile() || existing.isSymbolicLink() ||
         process.getuid && existing.uid !== process.getuid())) {
-        throw new Error('Database and sidecars must be regular files owned by the service account')
+        throw new StartupError('Database and sidecars must be regular files owned by the service account')
       }
     }
     database = new DatabaseSync(databasePath)
@@ -277,5 +277,40 @@ export async function openStore(dataDir: string): Promise<OpenStore> {
     await lock.close()
     await unlink(lockPath)
     throw error
+  }
+}
+
+// A lock whose owner is provably gone is stale: take it over so a crash or SIGKILL does not need a
+// manual step before a supervised restart can succeed. Anything ambiguous still fails closed.
+async function claimLock(lockPath: string): Promise<FileHandle> {
+  try {
+    return await open(lockPath, 'wx', 0o600)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+      throw new StartupError('DATA_DIR is locked and the lock file could not be inspected; inspect it manually')
+    }
+  }
+  const owner = Number((await readFile(lockPath, 'utf8').catch(() => '')).trim())
+  if (!Number.isInteger(owner) || owner <= 0) {
+    throw new StartupError('DATA_DIR is locked by an unreadable owner; inspect stale locks manually')
+  }
+  if (isRunning(owner)) {
+    throw new StartupError(`DATA_DIR is locked by a running service (pid ${owner}); stop it before starting another instance`)
+  }
+  await rm(lockPath, { force: true })
+  try {
+    return await open(lockPath, 'wx', 0o600)
+  } catch {
+    throw new StartupError('DATA_DIR is locked and the stale lock could not be replaced; inspect stale locks manually')
+  }
+}
+
+// A recycled PID looks alive, which keeps the safe (fail-closed) direction.
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
   }
 }

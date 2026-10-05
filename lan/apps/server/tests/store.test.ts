@@ -1,6 +1,7 @@
 // Migration and persistence tests use isolated node:sqlite fixtures only.
+import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, mkdir, realpath, rm, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -86,6 +87,22 @@ describe('versioned SQLite state', () => {
     }
   })
 
+  it('reads a checkpoint written before the warning field existed', () => {
+    const db = new DatabaseSync(':memory:')
+    const store = new Store(db)
+    try {
+      // Shape written by an earlier version: no `warning`.
+      const legacy = {
+        status: 'idle', current: null, playbackId: null, positionSeconds: 0,
+        durationSeconds: null, volume: 41, muted: true, error: null
+      }
+      db.prepare('INSERT INTO checkpoint (singleton, player_json) VALUES (1, ?)').run(JSON.stringify(legacy))
+      expect(store.checkpoint()).toEqual({ ...legacy, warning: null })
+    } finally {
+      store.close()
+    }
+  })
+
   it('refuses an unknown newer schema rather than resetting user data', () => {
     const db = new DatabaseSync(':memory:')
     db.exec('PRAGMA user_version = 2')
@@ -109,6 +126,41 @@ describe('versioned SQLite state', () => {
       expect(store.waiting()).toEqual(waiting)
     } finally {
       store.close()
+    }
+  })
+})
+
+describe('service lock recovery', () => {
+  it('takes over a lock whose owner is gone', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
+    const data = join(temporary, 'data')
+    try {
+      await mkdir(data, { recursive: true })
+      const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']).pid ?? 0
+      expect(dead).toBeGreaterThan(0)
+      await writeFile(join(data, 'service.lock'), String(dead), { mode: 0o600 })
+      const opened = await openStore(data)
+      try {
+        expect(opened.store.users()).toEqual([])
+      } finally {
+        await opened.close()
+      }
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses a lock held by a running owner or an unreadable one', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
+    const data = join(temporary, 'data')
+    try {
+      await mkdir(data, { recursive: true })
+      await writeFile(join(data, 'service.lock'), String(process.pid), { mode: 0o600 })
+      await expect(openStore(data)).rejects.toThrow(/locked by a running service/)
+      await writeFile(join(data, 'service.lock'), 'not-a-pid', { mode: 0o600 })
+      await expect(openStore(data)).rejects.toThrow(/unreadable owner/)
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
     }
   })
 })

@@ -4,15 +4,19 @@ import { assertUnprivileged, loadConfig } from './config.js'
 import { MpvDriver } from './player/mpv.js'
 import { SimulationDriver } from './player/simulation.js'
 import { openStore } from './store.js'
+import { StartupError } from './errors.js'
+import { sweepOrphanMpv } from './orphans.js'
 
 async function main(): Promise<void> {
   assertUnprivileged()
   process.umask(0o077)
   const config = loadConfig()
   if (!config.simulation && process.platform !== 'linux') {
-    throw new Error('Real playback requires Linux. No simulated player was selected')
+    throw new StartupError('Real playback requires Linux. No simulated player was selected')
   }
   const opened = await openStore(config.dataDir)
+  // A previous crash may have left an mpv child playing and holding the audio device.
+  if (!config.simulation) await sweepOrphanMpv((message) => process.stderr.write(`${message}\n`))
   let service: Awaited<ReturnType<typeof createApp>> | undefined
   let starting = true
   let signalRequested = false
@@ -59,8 +63,12 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch(() => {
+void main().catch((error: unknown) => {
+  process.exitCode = 1
+  if (error instanceof StartupError) {
+    process.stderr.write(`LAN startup failed: ${error.message}\n`)
+    return
+  }
   // Do not print library errors: they can contain filenames, SQL or connection details.
   process.stderr.write('LAN startup failed. Real playback is Linux-only and requires mpv/procfs. Check non-root execution, configuration, private data lock, catalog and built assets. No fallback player was started.\n')
-  process.exitCode = 1
 })

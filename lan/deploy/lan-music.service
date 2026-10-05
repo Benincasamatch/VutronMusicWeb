@@ -17,8 +17,10 @@ ExecStart=/usr/bin/node /opt/lan-music/lan/apps/server/dist/index.js
 StateDirectory=lan-music
 StateDirectoryMode=0700
 UMask=0077
-# A crash can leave a private lock. Never delete it or bootstrap automatically.
-Restart=no
+# A crash can leave a private lock. The next start takes over a lock whose owner is provably gone;
+# a live or unreadable owner still fails closed, so a supervised restart can recover on its own.
+Restart=on-failure
+RestartSec=5
 KillMode=mixed
 TimeoutStopSec=45
 NoNewPrivileges=true

@@ -22,6 +22,14 @@ const messages: Record<ErrorCode, string> = {
   INTERNAL_ERROR: 'The server could not complete the request'
 }
 
+// Startup failures whose message is safe to print: no filenames, SQL or connection details.
+export class StartupError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StartupError'
+  }
+}
+
 export class AppError extends Error {
   readonly statusCode: number
 

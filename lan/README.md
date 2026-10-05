@@ -200,7 +200,7 @@ journalctl -u lan-music.service
 sudo systemctl stop lan-music.service
 ```
 
-这些系统级操作均未执行；本例也不自动 enable 开机启动。正常停止由 Node 关闭自己的 mpv 子进程、IPC 和 SQLite，再释放锁。强杀 / 断电可能留下 `service.lock`：**先确认没有存活的服务或旧 mpv，再由运营者处理锁，不能自动删锁或按 PID 盲目杀进程。** PID 可能被重用。示例 `Restart=no` 特意保留人工检查边界，不对持锁状态进行无限重试。
+这些系统级操作均未执行；本例也不自动 enable 开机启动。正常停止由 Node 关闭自己的 mpv 子进程、IPC 和 SQLite，再释放锁。强杀 / 断电可能留下 `service.lock` 和仍在出声的 mpv：下一次启动会在确认锁记录的属主**确已消失**后接管该锁，并按 uid 与私有 socket 目录回收残留 mpv（只处理指向 `lan-mpv-*` 私有目录、且属于服务账号的进程）。属主仍存活、记录不可读，或 PID 被重用（会表现为存活）时一律 fail closed。示例已改为 `Restart=on-failure`，受监督的服务因此可在崩溃后自行恢复，而不会无限重试一个持锁状态。
 
 备份与升级均应先停服。备份整个私有数据目录，而不是运行中只复制 `lan.sqlite` 忽略 WAL；备份包含密码摘要和会话，同样需要私有权限。不要把备份放到 webDist。恢复后等待队列不会自动出声。
 

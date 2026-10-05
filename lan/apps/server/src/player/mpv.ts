@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { LIMITS } from '@lan/shared'
+import { MPV_SOCKET_PREFIX } from '../orphans.js'
 import { DriverError, type DriverEvent, type PlayerDriver } from './driver.js'
 
 interface PendingCommand {
@@ -84,7 +85,7 @@ export class MpvDriver implements PlayerDriver {
     }
     if (process.getuid?.() === 0) throw new Error('mpv must not run as OS root')
     if (this.child || this.closing) throw new DriverError('PLAYER_UNAVAILABLE')
-    this.directory = await mkdtemp(join(tmpdir(), 'lan-mpv-'))
+    this.directory = await mkdtemp(join(tmpdir(), MPV_SOCKET_PREFIX))
     await chmod(this.directory, 0o700)
     const socketPath = join(this.directory, 'ipc')
     if (Buffer.byteLength(socketPath) > 100) {
