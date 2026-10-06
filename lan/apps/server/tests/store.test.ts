@@ -1,5 +1,5 @@
 // Migration and persistence tests use isolated node:sqlite fixtures only.
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -131,14 +131,57 @@ describe('versioned SQLite state', () => {
 })
 
 describe('service lock recovery', () => {
-  it('takes over a lock whose owner is gone', async () => {
+  it('refuses a second instance while the first holds the lock, and frees it on close', async () => {
     const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
     const data = join(temporary, 'data')
     try {
       await mkdir(data, { recursive: true })
-      const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']).pid ?? 0
-      expect(dead).toBeGreaterThan(0)
-      await writeFile(join(data, 'service.lock'), String(dead), { mode: 0o600 })
+      const opened = await openStore(data)
+      try {
+        // The lock is held for as long as this instance lives, not only while it starts.
+        await expect(openStore(data)).rejects.toThrow(/locked by a running service/)
+      } finally {
+        await opened.close()
+      }
+      // Closing releases it, so the next start needs no cleanup step.
+      const next = await openStore(data)
+      try {
+        expect(next.store.users()).toEqual([])
+      } finally {
+        await next.close()
+      }
+    } finally {
+      await rm(temporary, { recursive: true, force: true })
+    }
+  })
+
+  it('frees the lock when the holder is killed, leaving nothing stale to detect', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
+    const data = join(temporary, 'data')
+    await mkdir(data, { recursive: true })
+    const lockPath = join(data, 'service.lock.sqlite')
+    // A child takes the lock the way the service does, then dies without cleaning up after itself.
+    const holder = spawn(process.execPath, ['-e', [
+      "const { DatabaseSync } = require('node:sqlite')",
+      `const db = new DatabaseSync(${JSON.stringify(lockPath)})`,
+      "db.exec('PRAGMA busy_timeout = 0')",
+      // Mirrors claimLock: materialize before locking, or SQLite takes no file lock at all.
+      "db.exec('CREATE TABLE IF NOT EXISTS lock (owner INTEGER NOT NULL)')",
+      "db.exec('BEGIN EXCLUSIVE')",
+      "process.stdout.write('held')",
+      'setInterval(() => {}, 1000)'
+    ].join('\n')], { stdio: ['ignore', 'pipe', 'ignore'] })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('the lock holder never reported readiness')), 10000)
+        holder.stdout!.once('data', () => { clearTimeout(timer); resolve() })
+        holder.once('exit', () => reject(new Error('the lock holder exited before taking the lock')))
+        holder.once('error', reject)
+      })
+      await expect(openStore(data)).rejects.toThrow(/locked by a running service/)
+      holder.kill('SIGKILL')
+      await new Promise<void>((resolve) => holder.once('exit', () => resolve()))
+      // The kernel released the lock with the process: there is no stale lock to detect or take over.
       const opened = await openStore(data)
       try {
         expect(opened.store.users()).toEqual([])
@@ -146,39 +189,7 @@ describe('service lock recovery', () => {
         await opened.close()
       }
     } finally {
-      await rm(temporary, { recursive: true, force: true })
-    }
-  })
-
-  it('refuses a lock held by a running owner or an unreadable one', async () => {
-    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
-    const data = join(temporary, 'data')
-    try {
-      await mkdir(data, { recursive: true })
-      await writeFile(join(data, 'service.lock'), String(process.pid), { mode: 0o600 })
-      await expect(openStore(data)).rejects.toThrow(/locked by a running service/)
-      await writeFile(join(data, 'service.lock'), 'not-a-pid', { mode: 0o600 })
-      await expect(openStore(data)).rejects.toThrow(/unreadable owner/)
-    } finally {
-      await rm(temporary, { recursive: true, force: true })
-    }
-  })
-
-  it('records itself as the new owner so a second start is refused', async () => {
-    const temporary = await mkdtemp(join(tmpdir(), 'lan-store-lock-'))
-    const data = join(temporary, 'data')
-    try {
-      await mkdir(data, { recursive: true })
-      const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']).pid ?? 0
-      await writeFile(join(data, 'service.lock'), String(dead), { mode: 0o600 })
-      const opened = await openStore(data)
-      try {
-        // The takeover has to be complete, not just successful: the directory is ours now.
-        await expect(openStore(data)).rejects.toThrow(/locked by a running service/)
-      } finally {
-        await opened.close()
-      }
-    } finally {
+      if (holder.exitCode === null && holder.signalCode === null) holder.kill('SIGKILL')
       await rm(temporary, { recursive: true, force: true })
     }
   })
@@ -188,8 +199,8 @@ describe('service lock recovery', () => {
     const data = join(temporary, 'data')
     try {
       await mkdir(data, { recursive: true })
-      await mkdir(join(data, 'service.lock'))
-      await expect(openStore(data)).rejects.toThrow(/unreadable owner/)
+      await mkdir(join(data, 'service.lock.sqlite'))
+      await expect(openStore(data)).rejects.toThrow(/must be a regular file/)
     } finally {
       await rm(temporary, { recursive: true, force: true })
     }
@@ -200,12 +211,10 @@ describe('service lock recovery', () => {
     const data = join(temporary, 'data')
     try {
       await mkdir(data, { recursive: true })
-      // A dead owner's PID behind a symlink must not be read as if it were a real lock.
-      const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']).pid ?? 0
       const target = join(temporary, 'elsewhere')
-      await writeFile(target, String(dead), { mode: 0o600 })
-      await symlink(target, join(data, 'service.lock'))
-      await expect(openStore(data)).rejects.toThrow(/unreadable owner/)
+      await writeFile(target, 'not a lock', { mode: 0o600 })
+      await symlink(target, join(data, 'service.lock.sqlite'))
+      await expect(openStore(data)).rejects.toThrow(/must be a regular file/)
     } finally {
       await rm(temporary, { recursive: true, force: true })
     }

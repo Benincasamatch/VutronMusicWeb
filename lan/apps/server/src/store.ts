@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, lstat, mkdir, open, readFile, realpath, rm, unlink, type FileHandle } from 'node:fs/promises'
+import { chmod, lstat, mkdir, realpath } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
@@ -237,12 +237,11 @@ export async function openStore(dataDir: string): Promise<OpenStore> {
   dataDir = await realpath(dataDir)
   if (process.getuid && info.uid !== process.getuid()) throw new StartupError('DATA_DIR must belong to the service account')
   await chmod(dataDir, 0o700)
-  const lockPath = resolve(dataDir, 'service.lock')
+  const lockPath = resolve(dataDir, 'service.lock.sqlite')
   const lock = await claimLock(lockPath)
   let store: Store | undefined
   let database: DatabaseSync | undefined
   try {
-    await lock.writeFile(String(process.pid))
     const databasePath = resolve(dataDir, 'lan.sqlite')
     for (const path of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`, `${databasePath}-journal`]) {
       const existing = await lstat(path).catch((error: NodeJS.ErrnoException) => {
@@ -266,72 +265,61 @@ export async function openStore(dataDir: string): Promise<OpenStore> {
         try {
           store?.close()
         } finally {
-          await lock.close()
-          await unlink(lockPath)
+          lock.release()
         }
       }
     }
   } catch (error) {
     if (store) store.close()
     else database?.close()
-    await lock.close()
-    await unlink(lockPath)
+    lock.release()
     throw error
   }
 }
 
-// A lock whose owner is provably gone is stale: take it over so a crash or SIGKILL does not need a
-// manual step before a supervised restart can succeed. Anything ambiguous still fails closed.
-async function claimLock(lockPath: string): Promise<FileHandle> {
+// The lock is an OS-level exclusive lock on a private SQLite database, not a PID file. The kernel
+// releases it when the process dies, so a crash leaves nothing stale to detect, there is no takeover
+// to race, and no instance can delete a lock another instance is holding. A `service.lock` PID file
+// left by an older version is a different name and is simply ignored.
+async function claimLock(lockPath: string): Promise<{ release: () => void }> {
+  const existing = await lstat(lockPath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null
+    throw error
+  })
+  if (existing && (!existing.isFile() || existing.isSymbolicLink() ||
+    process.getuid && existing.uid !== process.getuid())) {
+    throw new StartupError('The lock file must be a regular file owned by the service account')
+  }
+  const database = new DatabaseSync(lockPath)
   try {
-    return await open(lockPath, 'wx', 0o600)
+    // Fail immediately rather than waiting: another instance holding the lock is not a transient state.
+    database.exec('PRAGMA busy_timeout = 0')
+    // Materialize the file first: SQLite takes no file lock on a database it has never written.
+    database.exec('CREATE TABLE IF NOT EXISTS lock (owner INTEGER NOT NULL)')
+    database.exec('BEGIN EXCLUSIVE')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-      throw new StartupError('DATA_DIR is locked and the lock file could not be inspected; inspect it manually')
+    database.close()
+    if (isLocked(error)) {
+      throw new StartupError('DATA_DIR is locked by a running service; stop it before starting another instance')
+    }
+    throw new StartupError('DATA_DIR is locked and the lock could not be taken; check the data directory and inspect it manually')
+  }
+  await chmod(lockPath, 0o600)
+  return {
+    release: () => {
+      try {
+        database.exec('ROLLBACK')
+      } catch {
+        // Closing releases the lock whether or not the rollback succeeded.
+      }
+      database.close()
     }
   }
-  const first = await readLock(lockPath)
-  const owner = Number(first?.text.trim())
-  if (!first || !Number.isInteger(owner) || owner <= 0) {
-    throw new StartupError('DATA_DIR is locked by an unreadable owner; inspect stale locks manually')
-  }
-  if (isRunning(owner)) {
-    throw new StartupError(`DATA_DIR is locked by a running service (pid ${owner}); stop it before starting another instance`)
-  }
-  // Replacing the lock is a compare-and-swap, not a blind delete. Another process may have judged the
-  // same lock stale and already installed its own; deleting that one would leave two live owners of one
-  // data directory. Only the exact file we judged stale may be removed, and creating our own lock below
-  // stays the atomic gate if the swap still loses a race. A residual window remains between the check
-  // and the removal, which no amount of re-reading closes without an OS-level exclusive lock.
-  const again = await readLock(lockPath)
-  if (!again || again.text !== first.text || again.ino !== first.ino) {
-    throw new StartupError('DATA_DIR lock changed while it was being inspected; start again')
-  }
-  await rm(lockPath, { force: true })
-  try {
-    return await open(lockPath, 'wx', 0o600)
-  } catch {
-    throw new StartupError('DATA_DIR is locked and the stale lock could not be replaced; inspect stale locks manually')
-  }
 }
 
-// A lock that is not a plain file is never trusted, whatever it claims to contain.
-async function readLock(lockPath: string): Promise<{ text: string, ino: number } | null> {
-  try {
-    const info = await lstat(lockPath)
-    if (!info.isFile() || info.isSymbolicLink()) return null
-    return { text: await readFile(lockPath, 'utf8'), ino: Number(info.ino) }
-  } catch {
-    return null
-  }
-}
-
-// A recycled PID looks alive, which keeps the safe (fail-closed) direction.
-function isRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
-  }
+// SQLITE_BUSY and SQLITE_LOCKED are the two ways SQLite reports another process holding the lock.
+function isLocked(error: unknown): boolean {
+  const detail = error as { errcode?: number, message?: string }
+  if (detail.errcode === 5 || detail.errcode === 6) return true
+  return /locked|busy/i.test(detail.message ?? '')
 }
