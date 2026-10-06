@@ -37,6 +37,14 @@ const redact = (line: string): string => line.replace(/(^|[\s'"(=:])\/.*$/, '$1<
 // configured is both always observable and exactly the condition worth warning about.
 const AUDIO_FALLBACK_MARKER = /Failed to initialize audio driver '([^']*)'/
 
+// Compare the device itself, not the driver that provides it: a PipeWire host answers to the same
+// sink under `pipewire/` and `pulse/`, and treating those as different would warn on every track.
+const deviceName = (value: string): string => {
+  const trimmed = value.trim().toLowerCase()
+  const separator = trimmed.indexOf('/')
+  return separator >= 0 ? trimmed.slice(separator + 1) : trimmed
+}
+
 export class MpvDriver implements PlayerDriver {
   readonly simulation = false
   private sink: (event: DriverEvent) => void = () => undefined
@@ -63,6 +71,7 @@ export class MpvDriver implements PlayerDriver {
   private expectedPause = false
   private suppressPause = false
   private deviceFallback = false
+  private deviceAvailable: boolean | null = null
 
   constructor(
     private readonly executable: string,
@@ -151,6 +160,10 @@ export class MpvDriver implements PlayerDriver {
         this.report('mpv does not forward log messages; an audio device fallback cannot be detected on this build')
       }
       this.ready = true
+      // A device mpv cannot offer at all is the one fallback that is knowable before anything plays.
+      // `--audio-device` naming a sink that no longer exists can still initialise the AO on the
+      // default output without logging anything, so the log check alone misses exactly that case.
+      await this.noteDeviceAvailability()
     } catch (error) {
       const failure = this.failure
       // Clean up without closing: close() is terminal, so using it here would make one failed
@@ -178,6 +191,25 @@ export class MpvDriver implements PlayerDriver {
         resolve(null)
       })
     })
+  }
+
+  // Ask once per player start whether mpv still offers the configured device. Anything unexpected
+  // leaves the answer unknown rather than producing a warning that may not be true.
+  private async noteDeviceAvailability(): Promise<void> {
+    if (this.audioDevice === 'auto') return
+    let listed: unknown
+    try {
+      listed = await this.command(['get_property', 'audio-device-list'])
+    } catch {
+      return
+    }
+    if (!Array.isArray(listed)) return
+    const names = listed.flatMap((entry) => {
+      const name = entry && typeof entry === 'object' ? (entry as { name?: unknown }).name : undefined
+      return typeof name === 'string' ? [name] : []
+    })
+    if (!names.length) return
+    this.deviceAvailable = names.some((name) => deviceName(name) === deviceName(this.audioDevice))
   }
 
   private command(command: unknown[]): Promise<unknown> {
@@ -317,6 +349,11 @@ export class MpvDriver implements PlayerDriver {
       if (startAt > 0) await this.command(['seek', startAt, 'absolute+exact'])
       await this.command(['set_property', 'pause', false])
       this.suppressPause = false
+      // A warning requires a current entry, so a missing device is reported with the first playback
+      // rather than while the player is idle, where the snapshot would be invalid.
+      if (this.deviceAvailable === false) {
+        this.sink({ type: 'device', playbackId: this.playbackId, expected: this.audioDevice, detected: null, mismatch: true })
+      }
     } catch (error) {
       if (this.loading?.playbackId === playbackId) {
         clearTimeout(this.loading.timer)

@@ -13,7 +13,7 @@ interface Internals {
   observations: Map<number, { playbackId: string, property: string }>
 }
 
-function ipcFixture(options: { acknowledge?: boolean, load?: boolean, device?: string } = {}) {
+function ipcFixture(options: { acknowledge?: boolean, load?: boolean, device?: string, devices?: Array<{ name: string }> } = {}) {
   const logs: string[] = []
   const driver = new MpvDriver('/never-executed/mpv', options.device ?? 'auto', 'lan-mpv-test-', (message) => logs.push(message))
   const internals = driver as unknown as Internals
@@ -28,7 +28,9 @@ function ipcFixture(options: { acknowledge?: boolean, load?: boolean, device?: s
       commands.push(message)
       callback()
       if (options.acknowledge === false) return
-      internals.consume(`${JSON.stringify({ request_id: message.request_id, error: 'success' })}\n`)
+      // audio-device-list is the only command in these tests that answers with data.
+      const data = message.command[0] === 'get_property' && message.command[1] === 'audio-device-list' ? options.devices : undefined
+      internals.consume(`${JSON.stringify({ request_id: message.request_id, error: 'success', ...(data === undefined ? {} : { data }) })}\n`)
       if (message.command[0] === 'loadfile' && options.load !== false) {
         playlistId += 1
         internals.consume(`${JSON.stringify({ event: 'start-file', playlist_entry_id: playlistId })}\n`)
@@ -199,6 +201,32 @@ describe('private mpv JSON IPC', () => {
       expect(f.events.filter((event) => event.type === 'device')).toHaveLength(1)
     } finally {
       await f.driver.close()
+    }
+  })
+
+  it('flags a configured device mpv no longer offers, and stays quiet when it does', async () => {
+    const missing = ipcFixture({ device: 'pulse/alsa_output.removed_usb', devices: [{ name: 'auto' }, { name: 'pipewire/alsa_output.builtin' }] })
+    // The same sink reached through a different driver is still the same device.
+    const offered = ipcFixture({ device: 'pulse/alsa_output.builtin', devices: [{ name: 'auto' }, { name: 'pipewire/alsa_output.builtin' }] })
+    const automatic = ipcFixture({ device: 'auto', devices: [{ name: 'auto' }] })
+    const internalsOf = (f: ReturnType<typeof ipcFixture>) => f.internals as unknown as { noteDeviceAvailability: () => Promise<void> }
+    try {
+      await internalsOf(missing).noteDeviceAvailability()
+      const id = randomUUID()
+      await missing.driver.load('/private/first', id)
+      expect(missing.events).toContainEqual({
+        type: 'device', playbackId: id, expected: 'pulse/alsa_output.removed_usb', detected: null, mismatch: true
+      })
+      await internalsOf(offered).noteDeviceAvailability()
+      await offered.driver.load('/private/first', randomUUID())
+      expect(offered.events).toEqual([])
+      await internalsOf(automatic).noteDeviceAvailability()
+      await automatic.driver.load('/private/first', randomUUID())
+      expect(automatic.events).toEqual([])
+    } finally {
+      await missing.driver.close()
+      await offered.driver.close()
+      await automatic.driver.close()
     }
   })
 
